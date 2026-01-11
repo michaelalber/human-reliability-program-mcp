@@ -1,0 +1,262 @@
+"""Certification tools for HRP MCP.
+
+Provides tools for HRP certification requirements, position types,
+and disqualifying factors.
+"""
+
+from hrp_mcp.audit import audit_log
+from hrp_mcp.resources.reference_data import (
+    CERTIFICATION_COMPONENTS,
+    HRP_POSITION_TYPES,
+    get_disqualifying_factor,
+    get_position_type,
+)
+from hrp_mcp.server import mcp
+
+
+@mcp.tool()
+@audit_log
+async def get_certification_requirements(position_type: str | None = None) -> dict:
+    """
+    Get the requirements for initial HRP certification per 10 CFR 712.11.
+
+    Retrieve the requirements that must be met for an individual to receive
+    initial HRP certification. Requirements may vary by position type.
+
+    Args:
+        position_type: Optional position type to get specific requirements.
+                       Options:
+                       - "category_i_snm" - Category I SNM access
+                       - "nuclear_explosive" - Nuclear explosive access
+                       - "nuclear_explosive_duty" - Nuclear explosive duties
+                       - "hrp_designated" - HRP-designated positions
+                       Leave empty for general certification requirements.
+
+    Returns:
+        Certification requirements including:
+        - position_type: Position type (if specified)
+        - general_requirements: Requirements for all HRP positions
+        - specific_requirements: Position-specific requirements (if applicable)
+        - four_components: The four annual certification components
+        - section: CFR section reference
+    """
+    general_requirements = [
+        "Completion of initial HRP instruction",
+        "Successful completion of supervisory review",
+        "Successful completion of medical assessment",
+        "Successful completion of management evaluation",
+        "Successful completion of DOE personnel security review",
+        "No use of hallucinogens in the preceding 5 years",
+        "No flashback from hallucinogen use",
+        "Initial drug test with negative result",
+        "Initial alcohol test with negative result",
+        "For designated positions: successful counterintelligence evaluation (may include polygraph)",
+    ]
+
+    # Get four components
+    components = []
+    for comp in CERTIFICATION_COMPONENTS.values():
+        components.append(comp.to_dict())
+
+    result = {
+        "section": "712.11",
+        "citation": "10 CFR 712.11",
+        "general_requirements": general_requirements,
+        "four_components": components,
+    }
+
+    if position_type:
+        pos_info = get_position_type(position_type)
+        if pos_info:
+            result["position_type"] = pos_info.position_type.value
+            result["position_title"] = pos_info.title
+            result["specific_requirements"] = pos_info.requirements
+            result["access_type"] = pos_info.access_type
+        else:
+            result["position_type_error"] = f"Unknown position type: {position_type}"
+            result["valid_types"] = list(HRP_POSITION_TYPES.keys())
+
+    return result
+
+
+@mcp.tool()
+@audit_log
+async def get_recertification_requirements() -> dict:
+    """
+    Get the requirements for annual HRP recertification per 10 CFR 712.12.
+
+    Retrieve the requirements for maintaining HRP certification through
+    annual recertification.
+
+    Returns:
+        Recertification requirements including:
+        - annual_requirements: List of annual requirements
+        - four_components: The four components that must be completed annually
+        - random_testing: Random testing requirements
+        - section: CFR section reference
+    """
+    annual_requirements = [
+        "Annual completion of HRP instruction",
+        "Successful annual supervisory review",
+        "Successful annual medical assessment",
+        "Successful annual management evaluation",
+        "Successful annual DOE personnel security review",
+        "Random drug testing at least once every 12 months",
+        "Random alcohol testing at least once every 12 months",
+        "Continuous observation by supervisors",
+        "Immediate reporting of any safety or security concerns",
+    ]
+
+    components = []
+    for comp in CERTIFICATION_COMPONENTS.values():
+        components.append(comp.to_dict())
+
+    return {
+        "section": "712.12",
+        "citation": "10 CFR 712.12",
+        "annual_requirements": annual_requirements,
+        "four_components": components,
+        "random_testing": {
+            "drug_testing": "At least once every 12 months from previous test",
+            "alcohol_testing": "At least once every 12 months from previous test",
+            "for_cause_testing": "If involved in incident, unsafe practice, or reasonable suspicion",
+        },
+        "recertification_frequency": "Annual",
+    }
+
+
+@mcp.tool()
+@audit_log
+async def check_disqualifying_factors(factor_description: str) -> dict:
+    """
+    Evaluate potential disqualifying factors for HRP certification.
+
+    Analyze a described condition or circumstance against HRP disqualifying
+    factors to determine potential impact on certification.
+
+    Args:
+        factor_description: Description of the condition or circumstance to evaluate.
+                           Examples:
+                           - "used marijuana 2 years ago"
+                           - "diagnosed with depression"
+                           - "positive alcohol test last month"
+                           - "hallucinogen use 6 years ago"
+
+    Returns:
+        Evaluation including:
+        - factor_description: The input description
+        - matching_factors: List of potentially matching disqualifying factors
+        - is_absolute: Whether any matching factor is an absolute disqualifier
+        - guidance: Guidance on how the factor is typically evaluated
+        - recommendation: Recommended next steps
+    """
+    factor_lower = factor_description.lower()
+
+    matching_factors = []
+    is_absolute = False
+
+    # Check for hallucinogen use
+    if any(term in factor_lower for term in ["hallucinogen", "lsd", "mushroom", "psilocybin", "mescaline", "peyote"]):
+        if "5 year" in factor_lower or any(f"{i} year" in factor_lower for i in range(1, 5)):
+            factor = get_disqualifying_factor("hallucinogen_use")
+            if factor:
+                matching_factors.append(factor.to_dict())
+                is_absolute = True
+        if "flashback" in factor_lower:
+            factor = get_disqualifying_factor("hallucinogen_flashback")
+            if factor:
+                matching_factors.append(factor.to_dict())
+                is_absolute = True
+
+    # Check for drug-related factors
+    if any(term in factor_lower for term in ["drug", "marijuana", "cocaine", "opioid", "positive test"]):
+        factor = get_disqualifying_factor("drug_test_positive")
+        if factor:
+            matching_factors.append(factor.to_dict())
+        factor = get_disqualifying_factor("substance_use_disorder")
+        if factor and any(term in factor_lower for term in ["disorder", "addiction", "dependence"]):
+            matching_factors.append(factor.to_dict())
+
+    # Check for alcohol-related factors
+    if any(term in factor_lower for term in ["alcohol", "drinking", "dui", "dwi"]):
+        factor = get_disqualifying_factor("alcohol_test_positive")
+        if factor:
+            matching_factors.append(factor.to_dict())
+        factor = get_disqualifying_factor("alcohol_use_disorder")
+        if factor and any(term in factor_lower for term in ["disorder", "alcoholism", "dependence"]):
+            matching_factors.append(factor.to_dict())
+
+    # Check for mental health conditions
+    if any(term in factor_lower for term in ["depression", "anxiety", "bipolar", "ptsd", "mental", "psychiatric", "psychological"]):
+        factor = get_disqualifying_factor("mental_health_condition")
+        if factor:
+            matching_factors.append(factor.to_dict())
+
+    # Check for physical conditions
+    if any(term in factor_lower for term in ["physical", "disability", "chronic", "medical condition"]):
+        factor = get_disqualifying_factor("physical_condition")
+        if factor:
+            matching_factors.append(factor.to_dict())
+
+    # Check for behavioral issues
+    if any(term in factor_lower for term in ["violation", "dishonest", "misconduct", "behavioral"]):
+        factor = get_disqualifying_factor("behavioral_issue")
+        if factor:
+            matching_factors.append(factor.to_dict())
+
+    # Check for security concerns
+    if any(term in factor_lower for term in ["security", "clearance", "foreign", "criminal"]):
+        factor = get_disqualifying_factor("security_concern")
+        if factor:
+            matching_factors.append(factor.to_dict())
+
+    # Build response
+    if not matching_factors:
+        return {
+            "factor_description": factor_description,
+            "matching_factors": [],
+            "is_absolute_disqualifier": False,
+            "guidance": "No specific disqualifying factors identified based on the description provided.",
+            "recommendation": "Consult with your HRP management official or Designated Physician for a formal evaluation.",
+            "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
+        }
+
+    guidance = []
+    for factor in matching_factors:
+        guidance.append(f"{factor['name']}: {factor['evaluation_guidance']}")
+
+    return {
+        "factor_description": factor_description,
+        "matching_factors": matching_factors,
+        "is_absolute_disqualifier": is_absolute,
+        "guidance": "\n".join(guidance),
+        "recommendation": "Immediate consultation with HRP management official required." if is_absolute else "Formal evaluation by appropriate HRP official recommended.",
+        "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
+    }
+
+
+@mcp.tool()
+@audit_log
+async def get_hrp_position_types() -> dict:
+    """
+    Get information about all HRP position types per 10 CFR 712.10.
+
+    Retrieve details about the four types of positions that require
+    HRP certification.
+
+    Returns:
+        Position types information including:
+        - section: CFR section reference
+        - position_types: List of all position types with details
+    """
+    position_types = []
+    for pos_info in HRP_POSITION_TYPES.values():
+        position_types.append(pos_info.to_dict())
+
+    return {
+        "section": "712.10",
+        "citation": "10 CFR 712.10",
+        "title": "Designation of HRP positions",
+        "position_types": position_types,
+        "note": "DOE/NNSA sites may designate additional positions as HRP positions based on specific site requirements and national security considerations.",
+    }

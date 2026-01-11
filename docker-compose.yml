@@ -1,0 +1,34 @@
+# Docker Compose for HRP MCP Server
+# Usage: docker-compose up -d
+
+services:
+  hrp-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hrp-mcp-server
+    environment:
+      - HRP_MCP_TRANSPORT=streamable-http
+      - HRP_MCP_HOST=0.0.0.0
+      - HRP_MCP_PORT=8000
+      - HRP_CHROMA_PERSIST_DIR=/app/data/chroma
+      - HRP_AUDIT_LOG_PATH=/app/logs/audit.jsonl
+      - HRP_LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - hrp-chroma-data:/app/data/chroma
+      - hrp-logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import hrp_mcp; print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  hrp-chroma-data:
+    driver: local
+  hrp-logs:
+    driver: local

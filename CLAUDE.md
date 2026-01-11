@@ -126,41 +126,56 @@ HRP_AUDIT_LOG_PATH=./logs/audit.jsonl
 ## Development Commands
 
 ```bash
+# Create virtual environment (Python 3.10+)
+python3.10 -m venv .venv
+source .venv/bin/activate
+
 # Install dependencies
-uv sync
+pip install --upgrade pip
+pip install -e ".[dev]"
 
 # Run MCP server (stdio mode for Claude Desktop)
-uv run python -m hrp_mcp.server
+python -m hrp_mcp.server
 
 # Run with Streamable HTTP for web integration
-HRP_MCP_TRANSPORT=streamable-http uv run python -m hrp_mcp.server
+HRP_MCP_TRANSPORT=streamable-http python -m hrp_mcp.server
 
-# Ingest regulations
-uv run python scripts/ingest_regulations.py --source ./data/regulations/
-
-# Update guidance documents
-uv run python scripts/update_guidance.py
+# Ingest regulations from eCFR
+python scripts/ingest_regulations.py --download
 
 # Run tests
-uv run pytest
+pytest
 
 # Run tests with coverage
-uv run pytest --cov=src --cov-report=term-missing
+pytest --cov=src --cov-report=term-missing
 
 # Lint
-uv run ruff check src/ tests/
+ruff check src/ tests/
 
 # Lint and auto-fix
-uv run ruff check --fix src/ tests/
+ruff check --fix src/ tests/
 
 # Format code
-uv run ruff format src/ tests/
-
-# Format check (CI)
-uv run ruff format --check src/ tests/
+ruff format src/ tests/
 
 # Type checking
-uv run mypy src/
+mypy src/
+```
+
+## Docker Deployment
+
+```bash
+# Build Docker image
+docker build -t hrp-mcp .
+
+# Run with Docker Compose (HTTP transport)
+docker-compose up -d
+
+# Run standalone (stdio transport)
+docker run --rm -it hrp-mcp
+
+# View logs
+docker-compose logs -f
 ```
 
 ## Security Considerations
@@ -178,8 +193,8 @@ uv run mypy src/
 {
   "mcpServers": {
     "hrp": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "hrp_mcp.server"],
+      "command": "/path/to/human-reliability-program-mcp/.venv/bin/python",
+      "args": ["-m", "hrp_mcp.server"],
       "cwd": "/path/to/human-reliability-program-mcp"
     }
   }
