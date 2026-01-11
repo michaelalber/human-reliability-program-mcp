@@ -49,9 +49,13 @@ async def ingest_part(part: int, download: bool, data_dir: Path) -> dict:
 
 
 async def ingest_handbook(source_path: str | None) -> dict:
-    """Ingest the HRP Handbook PDF."""
+    """Ingest the HRP Handbook from DOE website or local file."""
     logger.info("Processing HRP Handbook...")
     ingestor = HandbookIngestor()
+
+    # If "download" was passed, set to None to trigger auto-download
+    if source_path == "download":
+        source_path = None
 
     # Ingest
     logger.info("Starting handbook ingestion...")
@@ -84,9 +88,11 @@ async def main() -> int:
     )
     parser.add_argument(
         "--handbook",
-        type=str,
+        nargs="?",
+        const="download",
+        default=None,
         metavar="PATH",
-        help="Path to HRP Handbook PDF file to ingest.",
+        help="Ingest HRP Handbook. If no path given, downloads from DOE website.",
     )
     parser.add_argument(
         "--source",
