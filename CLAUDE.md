@@ -180,11 +180,10 @@ docker-compose logs -f
 
 ## Security Considerations
 
-- This server handles sensitive personnel reliability information. Deploy only on approved DOE/NNSA networks.
-- Audit logging is mandatory for production use per DOE Order requirements.
-- Vector store contains regulation and guidance text only—no PII or individual HRP records.
-- All access should comply with site-specific HRP implementation procedures.
-- Consult with ISSM/ISSO before deployment on any classified or controlled network.
+- This server provides access to **publicly available** 10 CFR Part 712 regulations from eCFR.
+- No sensitive personnel data, PII, or individual HRP records are stored or processed.
+- Vector store contains only public regulatory text.
+- Audit logging is available for tracking tool usage if needed.
 
 ## Integration Points
 
