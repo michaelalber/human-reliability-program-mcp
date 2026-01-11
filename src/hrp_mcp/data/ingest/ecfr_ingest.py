@@ -4,6 +4,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
+from xml.etree.ElementTree import Element
 
 import httpx
 from defusedxml import ElementTree as ET  # noqa: N817
@@ -153,14 +154,23 @@ class HRPIngestor(BaseIngestor):
 
     async def _download_xml(self) -> str:
         """Download Title 10, Chapter III, Part 712 XML from eCFR."""
-        # Get latest date
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            # First, get the current date for Title 10
-            dates_url = f"{ECFR_API_BASE}/titles/10"
-            resp = await client.get(dates_url)
+        async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+            # First, get the list of titles to find the latest date for Title 10
+            titles_url = f"{ECFR_API_BASE}/titles"
+            resp = await client.get(titles_url)
             resp.raise_for_status()
-            dates_data = resp.json()
-            latest_date = dates_data.get("latest_issue_date", datetime.now().strftime("%Y-%m-%d"))
+            titles_data = resp.json()
+
+            # Find Title 10 and get its latest date
+            latest_date = None
+            for title in titles_data.get("titles", []):
+                if title.get("number") == 10:
+                    latest_date = title.get("up_to_date_as_of")
+                    break
+
+            if not latest_date:
+                latest_date = datetime.now().strftime("%Y-%m-%d")
+                logger.warning(f"Could not find Title 10 date, using {latest_date}")
 
             # Download the full title XML (we'll filter to Part 712)
             xml_url = f"{ECFR_API_BASE}/full/{latest_date}/title-10.xml"
@@ -209,7 +219,7 @@ class HRPIngestor(BaseIngestor):
 
         return sections
 
-    def _find_sections(self, root: ET.Element) -> list:
+    def _find_sections(self, root: Element) -> list:
         """Find all section elements in XML."""
         sections = []
 
@@ -221,7 +231,7 @@ class HRPIngestor(BaseIngestor):
 
         return sections
 
-    def _extract_section_number(self, elem: ET.Element) -> str | None:
+    def _extract_section_number(self, elem: Element) -> str | None:
         """Extract section number from element."""
         # Try SECTNO element
         for child in elem:
@@ -250,7 +260,7 @@ class HRPIngestor(BaseIngestor):
 
         return None
 
-    def _extract_title(self, elem: ET.Element, section_num: str) -> str:
+    def _extract_title(self, elem: Element, section_num: str) -> str:
         """Extract section title from element."""
         # Try SUBJECT element
         for child in elem:
@@ -271,7 +281,7 @@ class HRPIngestor(BaseIngestor):
         # Fall back to known titles
         return HRP_SECTIONS.get(section_num, "")
 
-    def _extract_content(self, elem: ET.Element) -> str:
+    def _extract_content(self, elem: Element) -> str:
         """Extract text content from element."""
         parts = []
 
