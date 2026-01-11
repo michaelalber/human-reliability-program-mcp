@@ -1,4 +1,4 @@
-"""eCFR ingestion for 10 CFR Parts 707, 710, 712."""
+"""eCFR ingestion for 10 CFR Parts 707, 710, 712 using structure API."""
 
 import logging
 import re
@@ -19,105 +19,25 @@ logger = logging.getLogger(__name__)
 # eCFR API base URL
 ECFR_API_BASE = "https://www.ecfr.gov/api/versioner/v1"
 
-# Part configurations
+# Part configurations (source type mapping, fallback sections kept for reference)
 CFR_PARTS = {
     707: {
         "name": "Workplace Substance Abuse Programs",
         "source": SourceType.CFR_707,
-        "sections": {
-            "707.1": "Purpose",
-            "707.2": "Scope",
-            "707.3": "Definitions",
-            "707.4": "Responsibilities",
-            "707.5": "Employee Assistance Programs",
-            "707.6": "Contractor drug and alcohol testing programs",
-            "707.7": "Testing requirements",
-            "707.8": "Procedures for drug testing",
-            "707.9": "Procedures for alcohol testing",
-            "707.10": "Review of test results",
-            "707.11": "Drug and alcohol testing specimen collection",
-            "707.12": "Reporting test results",
-            "707.13": "Recordkeeping",
-            "707.14": "Confidentiality",
-            "707.15": "Training",
-            "707.16": "Personnel actions",
-        },
     },
     710: {
         "name": "Procedures for Determining Eligibility for Access",
         "source": SourceType.CFR_710,
-        "sections": {
-            "710.1": "Purpose",
-            "710.2": "Scope",
-            "710.3": "Reference material",
-            "710.4": "Policy",
-            "710.5": "Definitions",
-            "710.6": "Application and forms",
-            "710.7": "DOE action on derogatory information",
-            "710.8": "Criteria for determining eligibility",
-            "710.9": "Action on receipt of derogatory information",
-            "710.10": "Suspension of access authorization",
-            "710.11": "Notification letter",
-            "710.12": "Action on the notification letter",
-            "710.13": "Request for reconsideration",
-            "710.20": "Administrative review",
-            "710.21": "Hearing Officer",
-            "710.22": "Appointment of counsel",
-            "710.23": "Time for determination",
-            "710.24": "Authority of Hearing Officer",
-            "710.25": "Conduct of hearing",
-            "710.26": "Hearing",
-            "710.27": "Findings and recommendation",
-            "710.28": "Final decision",
-            "710.29": "Appeals",
-            "710.30": "Record of case",
-            "710.31": "Personnel Security Record",
-        },
     },
     712: {
         "name": "Human Reliability Program",
         "source": SourceType.CFR_712,
-        "sections": {
-            # Subpart A - Procedures
-            "712.1": "Purpose",
-            "712.2": "Scope",
-            "712.3": "Definitions",
-            "712.10": "Designation of HRP positions",
-            "712.11": "General requirements for HRP certification",
-            "712.12": "HRP recertification",
-            "712.13": "Medical assessment",
-            "712.14": "Supervisory review",
-            "712.15": "Drug and alcohol testing",
-            "712.16": "Management evaluation",
-            "712.17": "DOE security review",
-            "712.18": "Transferring HRP certification",
-            "712.19": "Temporary removal from HRP",
-            "712.20": "Removal from HRP",
-            "712.21": "Reinstatement",
-            "712.22": "Request for reconsideration",
-            "712.23": "Administrative review",
-            "712.24": "Administrative Judge",
-            "712.25": "Secretary review",
-            # Subpart B - Medical Standards
-            "712.30": "Medical standards - general",
-            "712.31": "Application of medical standards",
-            "712.32": "Physical examination",
-            "712.33": "Designated Physician",
-            "712.34": "Psychological evaluation",
-            "712.35": "Return to work evaluation",
-            "712.36": "Medical disqualification",
-            "712.37": "Medical removal protection",
-            "712.38": "Medical records",
-        },
     },
 }
 
-# Keep HRP_SECTIONS for backward compatibility
-HRP_SECTIONS = CFR_PARTS[712]["sections"]
-
 
 class CFRPartIngestor(BaseIngestor):
-    """Ingestor for 10 CFR Parts 707, 710, 712 from eCFR."""
+    """Ingestor for 10 CFR Parts 707, 710, 712 from eCFR using structure API."""
 
     def __init__(self, part: int = 712, batch_size: int = 50):
         """
@@ -134,16 +54,93 @@ class CFRPartIngestor(BaseIngestor):
         self.part_config = CFR_PARTS[part]
         self.batch_size = batch_size
         self._chunker = RegulationChunker(max_tokens=512, overlap_tokens=50)
+        self._sections_cache: dict[str, str] | None = None
 
     @property
     def source_type(self) -> SourceType:
         """Get the source type for this part."""
         return self.part_config["source"]
 
-    @property
-    def sections(self) -> dict[str, str]:
-        """Get the sections for this part."""
-        return self.part_config["sections"]
+    async def _fetch_structure(self) -> dict[str, str]:
+        """
+        Fetch section structure from eCFR API.
+
+        Returns:
+            Dict mapping section number to title (e.g., {"712.1": "Purpose"}).
+        """
+        if self._sections_cache is not None:
+            return self._sections_cache
+
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            # Get the latest date for Title 10
+            titles_url = f"{ECFR_API_BASE}/titles"
+            resp = await client.get(titles_url)
+            resp.raise_for_status()
+            titles_data = resp.json()
+
+            latest_date = None
+            for title in titles_data.get("titles", []):
+                if title.get("number") == 10:
+                    latest_date = title.get("up_to_date_as_of")
+                    break
+
+            if not latest_date:
+                latest_date = datetime.now().strftime("%Y-%m-%d")
+                logger.warning(f"Could not find Title 10 date, using {latest_date}")
+
+            # Fetch structure JSON
+            structure_url = f"{ECFR_API_BASE}/structure/{latest_date}/title-10.json"
+            logger.info(f"Fetching structure from {structure_url}")
+            resp = await client.get(structure_url)
+            resp.raise_for_status()
+            structure = resp.json()
+
+            # Find our part and extract sections
+            sections = self._extract_sections_from_structure(structure)
+            self._sections_cache = sections
+
+            logger.info(f"Found {len(sections)} sections for Part {self.part}")
+            return sections
+
+    def _extract_sections_from_structure(self, structure: dict) -> dict[str, str]:
+        """
+        Extract section numbers and titles from structure JSON.
+
+        Args:
+            structure: The full Title 10 structure JSON.
+
+        Returns:
+            Dict mapping section number to title.
+        """
+        sections: dict[str, str] = {}
+
+        def find_part(node: dict, part_num: int) -> dict | None:
+            """Recursively find a part in the structure."""
+            if str(node.get("identifier", "")) == str(part_num):
+                return node
+            for child in node.get("children", []):
+                result = find_part(child, part_num)
+                if result:
+                    return result
+            return None
+
+        def extract_sections(node: dict) -> None:
+            """Recursively extract all sections from a node."""
+            if node.get("type") == "section":
+                identifier = node.get("identifier", "")
+                # label_description has the title without the section number
+                title = node.get("label_description", "")
+                if identifier and title:
+                    sections[identifier] = title
+            for child in node.get("children", []):
+                extract_sections(child)
+
+        # Find our part
+        part_node = find_part(structure, self.part)
+        if part_node:
+            extract_sections(part_node)
+
+        return sections
 
     async def ingest(self, source_path: str | None = None) -> IngestResult:
         """
@@ -158,6 +155,13 @@ class CFRPartIngestor(BaseIngestor):
         result = IngestResult()
 
         try:
+            # First, fetch the structure to get section list
+            section_titles = await self._fetch_structure()
+
+            if not section_titles:
+                result.add_error(f"No sections found in structure for Part {self.part}")
+                return result
+
             # Get XML content
             if source_path:
                 xml_path = Path(source_path)
@@ -170,7 +174,7 @@ class CFRPartIngestor(BaseIngestor):
                 xml_content = await self._download_xml()
 
             # Parse sections
-            sections = self._parse_sections(xml_content)
+            sections = self._parse_sections(xml_content, section_titles)
             result.sections_ingested = len(sections)
 
             if not sections:
@@ -232,7 +236,7 @@ class CFRPartIngestor(BaseIngestor):
         return str(file_path)
 
     async def _download_xml(self) -> str:
-        """Download Title 10, Chapter III, Part 712 XML from eCFR."""
+        """Download Title 10 XML from eCFR."""
         async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
             # First, get the list of titles to find the latest date for Title 10
             titles_url = f"{ECFR_API_BASE}/titles"
@@ -251,7 +255,7 @@ class CFRPartIngestor(BaseIngestor):
                 latest_date = datetime.now().strftime("%Y-%m-%d")
                 logger.warning(f"Could not find Title 10 date, using {latest_date}")
 
-            # Download the full title XML (we'll filter to Part 712)
+            # Download the full title XML (we'll filter to our part)
             xml_url = f"{ECFR_API_BASE}/full/{latest_date}/title-10.xml"
             logger.info(f"Downloading from {xml_url}")
 
@@ -260,12 +264,15 @@ class CFRPartIngestor(BaseIngestor):
 
             return resp.text
 
-    def _parse_sections(self, xml_content: str) -> dict[str, tuple[str, str]]:
+    def _parse_sections(
+        self, xml_content: str, section_titles: dict[str, str]
+    ) -> dict[str, tuple[str, str]]:
         """
         Parse sections from eCFR XML.
 
         Args:
             xml_content: Raw XML string.
+            section_titles: Dict mapping section number to title from structure API.
 
         Returns:
             Dict mapping section number to (title, content) tuple.
@@ -276,15 +283,11 @@ class CFRPartIngestor(BaseIngestor):
             # Parse XML
             root = ET.fromstring(xml_content)
 
-            # Find Part 712 in the XML structure
-            # eCFR structure: TITLE > CHAPTER > SUBCHAPTER > PART > SUBPART > SECTION
-            # or: DIV1 > DIV2 > ... > DIV8 for some formats
-
-            # Try different possible structures
+            # Find sections in the XML structure
             for section_elem in self._find_sections(root):
                 section_num = self._extract_section_number(section_elem)
-                if section_num and section_num in self.sections:
-                    title = self._extract_title(section_elem, section_num)
+                if section_num and section_num in section_titles:
+                    title = self._extract_title(section_elem, section_num, section_titles)
                     content = self._extract_content(section_elem)
                     if content:
                         sections[section_num] = (title, content)
@@ -292,9 +295,14 @@ class CFRPartIngestor(BaseIngestor):
         except ET.ParseError as e:
             logger.error(f"XML parse error: {e}")
 
-        # If XML parsing didn't work, try regex fallback
-        if not sections:
-            sections = self._parse_sections_regex(xml_content)
+        # If XML parsing didn't work well, try regex fallback
+        if len(sections) < len(section_titles) // 2:
+            logger.info("XML parsing found few sections, trying regex fallback")
+            regex_sections = self._parse_sections_regex(xml_content, section_titles)
+            # Merge, preferring XML-parsed sections
+            for section_num, data in regex_sections.items():
+                if section_num not in sections:
+                    sections[section_num] = data
 
         return sections
 
@@ -340,13 +348,17 @@ class CFRPartIngestor(BaseIngestor):
 
         return None
 
-    def _extract_title(self, elem: Element, section_num: str) -> str:
-        """Extract section title from element."""
+    def _extract_title(
+        self, elem: Element, section_num: str, section_titles: dict[str, str]
+    ) -> str:
+        """Extract section title from element or use structure API title."""
         # Try SUBJECT element
         for child in elem:
             tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
             if tag.upper() == "SUBJECT":
-                return (child.text or "").strip()
+                text = (child.text or "").strip()
+                if text:
+                    return text
 
         # Try HEAD element (after section number)
         for child in elem:
@@ -358,8 +370,8 @@ class CFRPartIngestor(BaseIngestor):
                 if text:
                     return text
 
-        # Fall back to known titles
-        return self.sections.get(section_num, "")
+        # Fall back to structure API title
+        return section_titles.get(section_num, "")
 
     def _extract_content(self, elem: Element) -> str:
         """Extract text content from element."""
@@ -374,7 +386,9 @@ class CFRPartIngestor(BaseIngestor):
 
         return "\n\n".join(parts)
 
-    def _parse_sections_regex(self, xml_content: str) -> dict[str, tuple[str, str]]:
+    def _parse_sections_regex(
+        self, xml_content: str, section_titles: dict[str, str]
+    ) -> dict[str, tuple[str, str]]:
         """Fallback regex parsing for section content."""
         sections: dict[str, tuple[str, str]] = {}
 
@@ -384,14 +398,17 @@ class CFRPartIngestor(BaseIngestor):
 
         for match in re.finditer(pattern, xml_content):
             section_num = f"{self.part}.{match.group(1)}"
-            if section_num in self.sections:
+            if section_num in section_titles:
                 title = match.group(2).strip()
                 content = match.group(3).strip()
                 # Clean up content
                 content = re.sub(r"<[^>]+>", "", content)  # Remove HTML tags
                 content = re.sub(r"\s+", " ", content)  # Normalize whitespace
                 if content:
-                    sections[section_num] = (title or self.sections.get(section_num, ""), content)
+                    sections[section_num] = (
+                        title or section_titles.get(section_num, ""),
+                        content,
+                    )
 
         return sections
 
