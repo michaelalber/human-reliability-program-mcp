@@ -1,4 +1,4 @@
-"""eCFR ingestion for 10 CFR Part 712 (Human Reliability Program)."""
+"""eCFR ingestion for 10 CFR Parts 707, 710, 712."""
 
 import logging
 import re
@@ -10,7 +10,7 @@ import httpx
 from defusedxml import ElementTree as ET  # noqa: N817
 
 from hrp_mcp.data.ingest.base import BaseIngestor, IngestResult
-from hrp_mcp.models.regulations import RegulationChunk
+from hrp_mcp.models.regulations import RegulationChunk, SourceType
 from hrp_mcp.rag.chunking import ChunkMetadata, RegulationChunker
 from hrp_mcp.services import get_embedding_service, get_vector_store
 
@@ -19,57 +19,135 @@ logger = logging.getLogger(__name__)
 # eCFR API base URL
 ECFR_API_BASE = "https://www.ecfr.gov/api/versioner/v1"
 
-# HRP sections we want to ingest (Part 712)
-HRP_SECTIONS = {
-    # Subpart A - Procedures
-    "712.1": "Purpose",
-    "712.2": "Scope",
-    "712.3": "Definitions",
-    "712.10": "Designation of HRP positions",
-    "712.11": "General requirements for HRP certification",
-    "712.12": "HRP recertification",
-    "712.13": "Medical assessment",
-    "712.14": "Supervisory review",
-    "712.15": "Drug and alcohol testing",
-    "712.16": "Management evaluation",
-    "712.17": "DOE security review",
-    "712.18": "Transferring HRP certification",
-    "712.19": "Temporary removal from HRP",
-    "712.20": "Removal from HRP",
-    "712.21": "Reinstatement",
-    "712.22": "Request for reconsideration",
-    "712.23": "Administrative review",
-    "712.24": "Administrative Judge",
-    "712.25": "Secretary review",
-    # Subpart B - Medical Standards
-    "712.30": "Medical standards - general",
-    "712.31": "Application of medical standards",
-    "712.32": "Physical examination",
-    "712.33": "Designated Physician",
-    "712.34": "Psychological evaluation",
-    "712.35": "Return to work evaluation",
-    "712.36": "Medical disqualification",
-    "712.37": "Medical removal protection",
-    "712.38": "Medical records",
+# Part configurations
+CFR_PARTS = {
+    707: {
+        "name": "Workplace Substance Abuse Programs",
+        "source": SourceType.CFR_707,
+        "sections": {
+            "707.1": "Purpose",
+            "707.2": "Scope",
+            "707.3": "Definitions",
+            "707.4": "Responsibilities",
+            "707.5": "Employee Assistance Programs",
+            "707.6": "Contractor drug and alcohol testing programs",
+            "707.7": "Testing requirements",
+            "707.8": "Procedures for drug testing",
+            "707.9": "Procedures for alcohol testing",
+            "707.10": "Review of test results",
+            "707.11": "Drug and alcohol testing specimen collection",
+            "707.12": "Reporting test results",
+            "707.13": "Recordkeeping",
+            "707.14": "Confidentiality",
+            "707.15": "Training",
+            "707.16": "Personnel actions",
+        },
+    },
+    710: {
+        "name": "Procedures for Determining Eligibility for Access",
+        "source": SourceType.CFR_710,
+        "sections": {
+            "710.1": "Purpose",
+            "710.2": "Scope",
+            "710.3": "Reference material",
+            "710.4": "Policy",
+            "710.5": "Definitions",
+            "710.6": "Application and forms",
+            "710.7": "DOE action on derogatory information",
+            "710.8": "Criteria for determining eligibility",
+            "710.9": "Action on receipt of derogatory information",
+            "710.10": "Suspension of access authorization",
+            "710.11": "Notification letter",
+            "710.12": "Action on the notification letter",
+            "710.13": "Request for reconsideration",
+            "710.20": "Administrative review",
+            "710.21": "Hearing Officer",
+            "710.22": "Appointment of counsel",
+            "710.23": "Time for determination",
+            "710.24": "Authority of Hearing Officer",
+            "710.25": "Conduct of hearing",
+            "710.26": "Hearing",
+            "710.27": "Findings and recommendation",
+            "710.28": "Final decision",
+            "710.29": "Appeals",
+            "710.30": "Record of case",
+            "710.31": "Personnel Security Record",
+        },
+    },
+    712: {
+        "name": "Human Reliability Program",
+        "source": SourceType.CFR_712,
+        "sections": {
+            # Subpart A - Procedures
+            "712.1": "Purpose",
+            "712.2": "Scope",
+            "712.3": "Definitions",
+            "712.10": "Designation of HRP positions",
+            "712.11": "General requirements for HRP certification",
+            "712.12": "HRP recertification",
+            "712.13": "Medical assessment",
+            "712.14": "Supervisory review",
+            "712.15": "Drug and alcohol testing",
+            "712.16": "Management evaluation",
+            "712.17": "DOE security review",
+            "712.18": "Transferring HRP certification",
+            "712.19": "Temporary removal from HRP",
+            "712.20": "Removal from HRP",
+            "712.21": "Reinstatement",
+            "712.22": "Request for reconsideration",
+            "712.23": "Administrative review",
+            "712.24": "Administrative Judge",
+            "712.25": "Secretary review",
+            # Subpart B - Medical Standards
+            "712.30": "Medical standards - general",
+            "712.31": "Application of medical standards",
+            "712.32": "Physical examination",
+            "712.33": "Designated Physician",
+            "712.34": "Psychological evaluation",
+            "712.35": "Return to work evaluation",
+            "712.36": "Medical disqualification",
+            "712.37": "Medical removal protection",
+            "712.38": "Medical records",
+        },
+    },
 }
 
+# Keep HRP_SECTIONS for backward compatibility
+HRP_SECTIONS = CFR_PARTS[712]["sections"]
 
-class HRPIngestor(BaseIngestor):
-    """Ingestor for 10 CFR Part 712 from eCFR."""
 
-    def __init__(self, batch_size: int = 50):
+class CFRPartIngestor(BaseIngestor):
+    """Ingestor for 10 CFR Parts 707, 710, 712 from eCFR."""
+
+    def __init__(self, part: int = 712, batch_size: int = 50):
         """
-        Initialize the HRP ingestor.
+        Initialize the CFR part ingestor.
 
         Args:
+            part: CFR part number (707, 710, or 712).
             batch_size: Number of chunks to add at once.
         """
+        if part not in CFR_PARTS:
+            raise ValueError(f"Unsupported part: {part}. Must be one of {list(CFR_PARTS.keys())}")
+
+        self.part = part
+        self.part_config = CFR_PARTS[part]
         self.batch_size = batch_size
         self._chunker = RegulationChunker(max_tokens=512, overlap_tokens=50)
 
+    @property
+    def source_type(self) -> SourceType:
+        """Get the source type for this part."""
+        return self.part_config["source"]
+
+    @property
+    def sections(self) -> dict[str, str]:
+        """Get the sections for this part."""
+        return self.part_config["sections"]
+
     async def ingest(self, source_path: str | None = None) -> IngestResult:
         """
-        Ingest 10 CFR Part 712 from local file or by downloading.
+        Ingest 10 CFR Part from local file or by downloading.
 
         Args:
             source_path: Optional path to XML file. If None, downloads from eCFR.
@@ -96,7 +174,7 @@ class HRPIngestor(BaseIngestor):
             result.sections_ingested = len(sections)
 
             if not sections:
-                result.add_error("No sections found in XML")
+                result.add_error(f"No sections found in XML for Part {self.part}")
                 return result
 
             # Chunk and embed
@@ -106,6 +184,7 @@ class HRPIngestor(BaseIngestor):
                     section=section_num,
                     title=title,
                     citation=f"10 CFR {section_num}",
+                    source=self.source_type,
                 )
                 chunks = self._chunker.chunk_text(content, metadata)
                 all_chunks.extend(chunks)
@@ -120,19 +199,19 @@ class HRPIngestor(BaseIngestor):
             await self._store_chunks(all_chunks)
 
             logger.info(
-                f"Ingested {result.sections_ingested} sections, "
+                f"Ingested Part {self.part}: {result.sections_ingested} sections, "
                 f"created {result.chunks_created} chunks"
             )
 
         except Exception as e:
             result.add_error(str(e))
-            logger.exception("Ingestion failed")
+            logger.exception(f"Ingestion failed for Part {self.part}")
 
         return result
 
     async def download(self, target_path: str) -> str:
         """
-        Download 10 CFR Part 712 XML to local path.
+        Download 10 CFR Part XML to local path.
 
         Args:
             target_path: Directory to save the XML file.
@@ -146,10 +225,10 @@ class HRPIngestor(BaseIngestor):
         xml_content = await self._download_xml()
 
         today = datetime.now().strftime("%Y-%m-%d")
-        file_path = target_dir / f"10cfr712_{today}.xml"
+        file_path = target_dir / f"10cfr{self.part}_{today}.xml"
         file_path.write_text(xml_content, encoding="utf-8")
 
-        logger.info(f"Downloaded 10 CFR 712 to {file_path}")
+        logger.info(f"Downloaded 10 CFR {self.part} to {file_path}")
         return str(file_path)
 
     async def _download_xml(self) -> str:
@@ -204,7 +283,7 @@ class HRPIngestor(BaseIngestor):
             # Try different possible structures
             for section_elem in self._find_sections(root):
                 section_num = self._extract_section_number(section_elem)
-                if section_num and section_num in HRP_SECTIONS:
+                if section_num and section_num in self.sections:
                     title = self._extract_title(section_elem, section_num)
                     content = self._extract_content(section_elem)
                     if content:
@@ -233,30 +312,31 @@ class HRPIngestor(BaseIngestor):
 
     def _extract_section_number(self, elem: Element) -> str | None:
         """Extract section number from element."""
+        pattern = rf"{self.part}\.(\d+)"
+
         # Try SECTNO element
         for child in elem:
             tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
             if tag.upper() == "SECTNO":
                 text = (child.text or "").strip()
-                # Extract number from "§ 712.11" or "712.11"
-                match = re.search(r"712\.(\d+)", text)
+                match = re.search(pattern, text)
                 if match:
-                    return f"712.{match.group(1)}"
+                    return f"{self.part}.{match.group(1)}"
 
         # Try HEAD element
         for child in elem:
             tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
             if tag.upper() == "HEAD":
                 text = (child.text or "").strip()
-                match = re.search(r"712\.(\d+)", text)
+                match = re.search(pattern, text)
                 if match:
-                    return f"712.{match.group(1)}"
+                    return f"{self.part}.{match.group(1)}"
 
         # Try N attribute
         n_attr = elem.get("N", "")
-        match = re.search(r"712\.(\d+)", n_attr)
+        match = re.search(pattern, n_attr)
         if match:
-            return f"712.{match.group(1)}"
+            return f"{self.part}.{match.group(1)}"
 
         return None
 
@@ -274,12 +354,12 @@ class HRPIngestor(BaseIngestor):
             if tag.upper() == "HEAD":
                 text = (child.text or "").strip()
                 # Remove section number prefix
-                text = re.sub(r"^§?\s*712\.\d+\s*", "", text)
+                text = re.sub(rf"^§?\s*{self.part}\.\d+\s*", "", text)
                 if text:
                     return text
 
         # Fall back to known titles
-        return HRP_SECTIONS.get(section_num, "")
+        return self.sections.get(section_num, "")
 
     def _extract_content(self, elem: Element) -> str:
         """Extract text content from element."""
@@ -299,19 +379,19 @@ class HRPIngestor(BaseIngestor):
         sections: dict[str, tuple[str, str]] = {}
 
         # Try to find sections using regex patterns
-        # Pattern: §712.XX followed by title and content
-        pattern = r"§\s*712\.(\d+)\s+([^\n]+)\n([\s\S]*?)(?=§\s*712\.\d+|$)"
+        # Pattern: §XXX.XX followed by title and content
+        pattern = rf"§\s*{self.part}\.(\d+)\s+([^\n]+)\n([\s\S]*?)(?=§\s*{self.part}\.\d+|$)"
 
         for match in re.finditer(pattern, xml_content):
-            section_num = f"712.{match.group(1)}"
-            if section_num in HRP_SECTIONS:
+            section_num = f"{self.part}.{match.group(1)}"
+            if section_num in self.sections:
                 title = match.group(2).strip()
                 content = match.group(3).strip()
                 # Clean up content
                 content = re.sub(r"<[^>]+>", "", content)  # Remove HTML tags
                 content = re.sub(r"\s+", " ", content)  # Normalize whitespace
                 if content:
-                    sections[section_num] = (title or HRP_SECTIONS[section_num], content)
+                    sections[section_num] = (title or self.sections.get(section_num, ""), content)
 
         return sections
 
@@ -332,3 +412,7 @@ class HRPIngestor(BaseIngestor):
             vector_store.add_chunks_batch(batch, embeddings)
 
             logger.debug(f"Stored batch of {len(batch)} chunks")
+
+
+# Backward compatibility alias
+HRPIngestor = CFRPartIngestor

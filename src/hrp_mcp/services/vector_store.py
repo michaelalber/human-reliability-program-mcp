@@ -4,7 +4,7 @@ import chromadb
 from chromadb import Collection
 
 from hrp_mcp.models.errors import VectorStoreError
-from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk
+from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk, SourceType
 
 
 class VectorStoreService:
@@ -63,20 +63,22 @@ class VectorStoreService:
             VectorStoreError: If the operation fails.
         """
         try:
+            metadata = {
+                "source": chunk.source.value,
+                "section": chunk.section,
+                "title": chunk.title,
+                "citation": chunk.citation,
+                "chunk_index": chunk.chunk_index,
+                "full_json": chunk.model_dump_json(),
+            }
+            if chunk.subpart:
+                metadata["subpart"] = chunk.subpart.value
+
             self.collection.add(
                 ids=[chunk.id],
                 embeddings=[embedding],
                 documents=[chunk.content],
-                metadatas=[
-                    {
-                        "subpart": chunk.subpart.value,
-                        "section": chunk.section,
-                        "title": chunk.title,
-                        "citation": chunk.citation,
-                        "chunk_index": chunk.chunk_index,
-                        "full_json": chunk.model_dump_json(),
-                    }
-                ],
+                metadatas=[metadata],
             )
         except Exception as e:
             raise VectorStoreError(f"Failed to add chunk '{chunk.id}': {e}") from e
@@ -106,21 +108,25 @@ class VectorStoreService:
             return
 
         try:
+            metadatas = []
+            for c in chunks:
+                meta = {
+                    "source": c.source.value,
+                    "section": c.section,
+                    "title": c.title,
+                    "citation": c.citation,
+                    "chunk_index": c.chunk_index,
+                    "full_json": c.model_dump_json(),
+                }
+                if c.subpart:
+                    meta["subpart"] = c.subpart.value
+                metadatas.append(meta)
+
             self.collection.add(
                 ids=[c.id for c in chunks],
                 embeddings=embeddings,
                 documents=[c.content for c in chunks],
-                metadatas=[
-                    {
-                        "subpart": c.subpart.value,
-                        "section": c.section,
-                        "title": c.title,
-                        "citation": c.citation,
-                        "chunk_index": c.chunk_index,
-                        "full_json": c.model_dump_json(),
-                    }
-                    for c in chunks
-                ],
+                metadatas=metadatas,
             )
         except Exception as e:
             raise VectorStoreError(f"Failed to add batch of {len(chunks)} chunks: {e}") from e
@@ -128,6 +134,7 @@ class VectorStoreService:
     def search(
         self,
         query_embedding: list[float],
+        source: SourceType | None = None,
         subpart: HRPSubpart | None = None,
         section: str | None = None,
         limit: int = 10,
@@ -137,7 +144,8 @@ class VectorStoreService:
 
         Args:
             query_embedding: Query vector.
-            subpart: Optional subpart filter (A or B).
+            source: Optional source filter (10cfr712, 10cfr710, etc.).
+            subpart: Optional subpart filter (A or B) - for 712 only.
             section: Optional section filter (e.g., "712.11").
             limit: Maximum number of results.
 
@@ -149,13 +157,19 @@ class VectorStoreService:
         """
         try:
             # Build where clause
+            conditions = []
+            if source:
+                conditions.append({"source": source.value})
+            if subpart:
+                conditions.append({"subpart": subpart.value})
+            if section:
+                conditions.append({"section": section})
+
             where = None
-            if subpart and section:
-                where = {"$and": [{"subpart": subpart.value}, {"section": section}]}
-            elif subpart:
-                where = {"subpart": subpart.value}
-            elif section:
-                where = {"section": section}
+            if len(conditions) == 1:
+                where = conditions[0]
+            elif len(conditions) > 1:
+                where = {"$and": conditions}
 
             results = self.collection.query(
                 query_embeddings=[query_embedding],

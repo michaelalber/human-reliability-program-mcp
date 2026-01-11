@@ -5,7 +5,12 @@ from dataclasses import dataclass
 
 import tiktoken
 
-from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk, get_subpart_for_section
+from hrp_mcp.models.regulations import (
+    HRPSubpart,
+    RegulationChunk,
+    SourceType,
+    get_subpart_for_section,
+)
 
 
 @dataclass
@@ -15,6 +20,7 @@ class ChunkMetadata:
     section: str
     title: str = ""
     citation: str = ""
+    source: SourceType = SourceType.CFR_712
 
 
 class RegulationChunker:
@@ -61,14 +67,18 @@ class RegulationChunker:
         Returns:
             List of RegulationChunk objects.
         """
-        subpart = get_subpart_for_section(metadata.section)
+        # Only set subpart for 10 CFR 712
+        subpart = None
+        if metadata.source == SourceType.CFR_712:
+            subpart = get_subpart_for_section(metadata.section)
 
         # If text fits in one chunk, return it
         if self.count_tokens(text) <= self.max_tokens:
-            chunk_id = self._make_chunk_id(metadata.section, 0)
+            chunk_id = self._make_chunk_id(metadata.section, metadata.source, 0)
             return [
                 RegulationChunk(
                     id=chunk_id,
+                    source=metadata.source,
                     subpart=subpart,
                     section=metadata.section,
                     title=metadata.title,
@@ -85,7 +95,7 @@ class RegulationChunker:
         self,
         text: str,
         metadata: ChunkMetadata,
-        subpart: HRPSubpart,
+        subpart: HRPSubpart | None,
     ) -> list[RegulationChunk]:
         """Split text into overlapping chunks."""
         chunks: list[RegulationChunk] = []
@@ -104,10 +114,11 @@ class RegulationChunker:
             if para_tokens > self.max_tokens:
                 if current_chunk_text:
                     # Save current chunk first
-                    chunk_id = self._make_chunk_id(metadata.section, chunk_index)
+                    chunk_id = self._make_chunk_id(metadata.section, metadata.source, chunk_index)
                     chunks.append(
                         RegulationChunk(
                             id=chunk_id,
+                            source=metadata.source,
                             subpart=subpart,
                             section=metadata.section,
                             title=metadata.title,
@@ -132,10 +143,11 @@ class RegulationChunker:
             if current_tokens + para_tokens > self.max_tokens:
                 # Save current chunk
                 if current_chunk_text:
-                    chunk_id = self._make_chunk_id(metadata.section, chunk_index)
+                    chunk_id = self._make_chunk_id(metadata.section, metadata.source, chunk_index)
                     chunks.append(
                         RegulationChunk(
                             id=chunk_id,
+                            source=metadata.source,
                             subpart=subpart,
                             section=metadata.section,
                             title=metadata.title,
@@ -163,10 +175,11 @@ class RegulationChunker:
 
         # Don't forget the last chunk
         if current_chunk_text:
-            chunk_id = self._make_chunk_id(metadata.section, chunk_index)
+            chunk_id = self._make_chunk_id(metadata.section, metadata.source, chunk_index)
             chunks.append(
                 RegulationChunk(
                     id=chunk_id,
+                    source=metadata.source,
                     subpart=subpart,
                     section=metadata.section,
                     title=metadata.title,
@@ -188,7 +201,7 @@ class RegulationChunker:
         self,
         paragraph: str,
         metadata: ChunkMetadata,
-        subpart: HRPSubpart,
+        subpart: HRPSubpart | None,
         start_index: int,
     ) -> list[RegulationChunk]:
         """Split a very long paragraph by sentences."""
@@ -206,10 +219,11 @@ class RegulationChunker:
 
             if current_tokens + sentence_tokens > self.max_tokens:
                 if current_chunk_text:
-                    chunk_id = self._make_chunk_id(metadata.section, chunk_index)
+                    chunk_id = self._make_chunk_id(metadata.section, metadata.source, chunk_index)
                     chunks.append(
                         RegulationChunk(
                             id=chunk_id,
+                            source=metadata.source,
                             subpart=subpart,
                             section=metadata.section,
                             title=metadata.title,
@@ -230,10 +244,11 @@ class RegulationChunker:
                 current_tokens += sentence_tokens
 
         if current_chunk_text:
-            chunk_id = self._make_chunk_id(metadata.section, chunk_index)
+            chunk_id = self._make_chunk_id(metadata.section, metadata.source, chunk_index)
             chunks.append(
                 RegulationChunk(
                     id=chunk_id,
+                    source=metadata.source,
                     subpart=subpart,
                     section=metadata.section,
                     title=metadata.title,
@@ -256,9 +271,11 @@ class RegulationChunker:
     def _make_chunk_id(
         self,
         section: str,
+        source: SourceType,
         chunk_index: int,
     ) -> str:
         """Generate a unique chunk ID."""
         # Normalize section for ID
         section_normalized = section.replace(".", "-")
-        return f"hrp:{section_normalized}:chunk-{chunk_index:03d}"
+        # Use source prefix (e.g., "10cfr712", "10cfr710")
+        return f"{source.value}:{section_normalized}:chunk-{chunk_index:03d}"

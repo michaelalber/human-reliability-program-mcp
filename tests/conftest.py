@@ -46,10 +46,11 @@ def rag_service(embedding_service, vector_store):
 @pytest.fixture
 def sample_hrp_chunk():
     """Get a sample HRP regulation chunk for testing."""
-    from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk
+    from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk, SourceType
 
     return RegulationChunk(
-        id="hrp:712-11:chunk-000",
+        id="10cfr712:712-11:chunk-000",
+        source=SourceType.CFR_712,
         subpart=HRPSubpart.SUBPART_A,
         section="712.11",
         title="General requirements for HRP certification",

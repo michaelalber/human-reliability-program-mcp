@@ -1,8 +1,17 @@
-"""Pydantic models for HRP regulations (10 CFR Part 712)."""
+"""Pydantic models for HRP regulations (10 CFR Parts 707, 710, 712)."""
 
 from enum import Enum
 
 from pydantic import BaseModel, Field
+
+
+class SourceType(str, Enum):
+    """Source document types for HRP-related content."""
+
+    CFR_712 = "10cfr712"  # Human Reliability Program
+    CFR_710 = "10cfr710"  # Procedures for Determining Eligibility (Personnel Security)
+    CFR_707 = "10cfr707"  # Workplace Substance Abuse Programs
+    HRP_HANDBOOK = "hrp_handbook"  # DOE HRP Implementation Handbook
 
 
 class HRPSubpart(str, Enum):
@@ -66,7 +75,14 @@ class RegulationChunk(BaseModel):
     """A chunk of regulation text with metadata for vector storage."""
 
     id: str = Field(..., description="Unique chunk ID (e.g., 'hrp:712.11:chunk-000')")
-    subpart: HRPSubpart = Field(..., description="Subpart A (Procedures) or B (Medical)")
+    source: SourceType = Field(
+        default=SourceType.CFR_712,
+        description="Source document (10cfr712, 10cfr710, 10cfr707, hrp_handbook)",
+    )
+    subpart: HRPSubpart | None = Field(
+        default=None,
+        description="Subpart A (Procedures) or B (Medical) - for 712 only",
+    )
     section: str = Field(..., description="Section number (e.g., '712.11')")
     title: str = Field(..., description="Section title")
     content: str = Field(..., description="Full text content of this chunk")
@@ -89,9 +105,9 @@ class SearchResult(BaseModel):
 
     def to_dict(self) -> dict:
         """Convert to dictionary for MCP tool response."""
-        return {
+        result = {
             "id": self.chunk.id,
-            "subpart": self.chunk.subpart.value,
+            "source": self.chunk.source.value,
             "section": self.chunk.section,
             "title": self.chunk.title,
             "content": self.chunk.content[:500] + "..."
@@ -100,6 +116,9 @@ class SearchResult(BaseModel):
             "citation": self.chunk.citation,
             "score": round(self.score, 3),
         }
+        if self.chunk.subpart:
+            result["subpart"] = self.chunk.subpart.value
+        return result
 
 
 class SectionInfo(BaseModel):

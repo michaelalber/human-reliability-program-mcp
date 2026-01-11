@@ -60,7 +60,7 @@ def test_vector_store_delete_all(populated_vector_store):
 
 def test_vector_store_get_by_id(populated_vector_store):
     """Test getting a chunk by its ID."""
-    result = populated_vector_store.get_by_id("hrp:712-11:chunk-000")
+    result = populated_vector_store.get_by_id("10cfr712:712-11:chunk-000")
     assert result is not None
     assert result["section"] == "712.11"
 
