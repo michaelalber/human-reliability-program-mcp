@@ -91,7 +91,9 @@ async def get_psychological_evaluation() -> dict:
             "Return-to-work evaluation after psychological issue",
             "Following any concerning behavioral observation",
         ],
-        "evaluation_areas": psych_standard.evaluation_criteria if psych_standard else [
+        "evaluation_areas": psych_standard.evaluation_criteria
+        if psych_standard
+        else [
             "Emotional stability",
             "Judgment and decision-making",
             "Impulse control",
@@ -99,7 +101,9 @@ async def get_psychological_evaluation() -> dict:
             "Interpersonal functioning",
             "Honesty and integrity",
         ],
-        "conditions_of_concern": psych_standard.conditions if psych_standard else [
+        "conditions_of_concern": psych_standard.conditions
+        if psych_standard
+        else [
             "Mood disorders",
             "Anxiety disorders",
             "Personality disorders",
@@ -142,43 +146,68 @@ async def check_medical_condition(condition: str) -> dict:
     key_considerations = []
 
     # Check for psychological conditions
-    if any(term in condition_lower for term in ["depression", "anxiety", "bipolar", "ptsd", "psychiatric", "mental"]):
+    if any(
+        term in condition_lower
+        for term in ["depression", "anxiety", "bipolar", "ptsd", "psychiatric", "mental"]
+    ):
         std = get_medical_standard("psychological_evaluation")
         if std:
             relevant_standards.append(std.to_dict())
-        key_considerations.extend([
-            "Current symptom status and stability",
-            "Medication regimen and compliance",
-            "Treatment history and response",
-            "Impact on job performance",
-            "Risk of decompensation under stress",
-        ])
+        key_considerations.extend(
+            [
+                "Current symptom status and stability",
+                "Medication regimen and compliance",
+                "Treatment history and response",
+                "Impact on job performance",
+                "Risk of decompensation under stress",
+            ]
+        )
 
     # Check for physical conditions
-    if any(term in condition_lower for term in ["heart", "cardiac", "hypertension", "diabetes", "seizure", "vision", "hearing", "back", "injury"]):
+    if any(
+        term in condition_lower
+        for term in [
+            "heart",
+            "cardiac",
+            "hypertension",
+            "diabetes",
+            "seizure",
+            "vision",
+            "hearing",
+            "back",
+            "injury",
+        ]
+    ):
         std = get_medical_standard("physical_examination")
         if std:
             relevant_standards.append(std.to_dict())
-        key_considerations.extend([
-            "Condition stability and control",
-            "Medication side effects",
-            "Risk of sudden incapacitation",
-            "Ability to perform essential job functions",
-            "Need for accommodations",
-        ])
+        key_considerations.extend(
+            [
+                "Condition stability and control",
+                "Medication side effects",
+                "Risk of sudden incapacitation",
+                "Ability to perform essential job functions",
+                "Need for accommodations",
+            ]
+        )
 
     # Check for substance-related conditions
-    if any(term in condition_lower for term in ["alcohol", "drug", "substance", "addiction", "recovery"]):
+    if any(
+        term in condition_lower
+        for term in ["alcohol", "drug", "substance", "addiction", "recovery"]
+    ):
         std = get_medical_standard("substance_use")
         if std:
             relevant_standards.append(std.to_dict())
-        key_considerations.extend([
-            "Duration of sobriety/recovery",
-            "Participation in treatment program",
-            "Ongoing support system",
-            "Risk of relapse",
-            "Compliance with random testing",
-        ])
+        key_considerations.extend(
+            [
+                "Duration of sobriety/recovery",
+                "Participation in treatment program",
+                "Ongoing support system",
+                "Risk of relapse",
+                "Compliance with random testing",
+            ]
+        )
 
     # General medical standard always applies
     gen_std = get_medical_standard("general_medical")
@@ -195,7 +224,9 @@ async def check_medical_condition(condition: str) -> dict:
             "Job task analysis comparison",
             "Determination of fitness for duty",
         ],
-        "key_considerations": key_considerations if key_considerations else [
+        "key_considerations": key_considerations
+        if key_considerations
+        else [
             "Current status and stability of condition",
             "Impact on ability to perform HRP duties safely",
             "Risk assessment for self and others",
@@ -227,8 +258,12 @@ async def get_designated_physician_role() -> dict:
         "section": "712.33",
         "citation": "10 CFR 712.33",
         "title": dp_info.title if dp_info else "Designated Physician",
-        "description": dp_info.description if dp_info else "A licensed physician designated to provide medical evaluations of HRP candidates and certified individuals.",
-        "responsibilities": dp_info.responsibilities if dp_info else [
+        "description": dp_info.description
+        if dp_info
+        else "A licensed physician designated to provide medical evaluations of HRP candidates and certified individuals.",
+        "responsibilities": dp_info.responsibilities
+        if dp_info
+        else [
             "Conduct medical assessments",
             "Review medical history",
             "Perform physical examinations",
@@ -236,7 +271,9 @@ async def get_designated_physician_role() -> dict:
             "Recommend accommodations if appropriate",
             "Report medical concerns to HRP management",
         ],
-        "qualifications": dp_info.qualifications if dp_info else [
+        "qualifications": dp_info.qualifications
+        if dp_info
+        else [
             "Licensed physician (MD or DO)",
             "Designated by HRP Management Official",
             "Training in occupational medicine preferred",

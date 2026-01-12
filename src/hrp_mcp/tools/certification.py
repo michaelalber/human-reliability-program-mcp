@@ -156,7 +156,10 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
     is_absolute = False
 
     # Check for hallucinogen use
-    if any(term in factor_lower for term in ["hallucinogen", "lsd", "mushroom", "psilocybin", "mescaline", "peyote"]):
+    if any(
+        term in factor_lower
+        for term in ["hallucinogen", "lsd", "mushroom", "psilocybin", "mescaline", "peyote"]
+    ):
         if "5 year" in factor_lower or any(f"{i} year" in factor_lower for i in range(1, 5)):
             factor = get_disqualifying_factor("hallucinogen_use")
             if factor:
@@ -169,7 +172,9 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
                 is_absolute = True
 
     # Check for drug-related factors
-    if any(term in factor_lower for term in ["drug", "marijuana", "cocaine", "opioid", "positive test"]):
+    if any(
+        term in factor_lower for term in ["drug", "marijuana", "cocaine", "opioid", "positive test"]
+    ):
         factor = get_disqualifying_factor("drug_test_positive")
         if factor:
             matching_factors.append(factor.to_dict())
@@ -183,17 +188,32 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
         if factor:
             matching_factors.append(factor.to_dict())
         factor = get_disqualifying_factor("alcohol_use_disorder")
-        if factor and any(term in factor_lower for term in ["disorder", "alcoholism", "dependence"]):
+        if factor and any(
+            term in factor_lower for term in ["disorder", "alcoholism", "dependence"]
+        ):
             matching_factors.append(factor.to_dict())
 
     # Check for mental health conditions
-    if any(term in factor_lower for term in ["depression", "anxiety", "bipolar", "ptsd", "mental", "psychiatric", "psychological"]):
+    if any(
+        term in factor_lower
+        for term in [
+            "depression",
+            "anxiety",
+            "bipolar",
+            "ptsd",
+            "mental",
+            "psychiatric",
+            "psychological",
+        ]
+    ):
         factor = get_disqualifying_factor("mental_health_condition")
         if factor:
             matching_factors.append(factor.to_dict())
 
     # Check for physical conditions
-    if any(term in factor_lower for term in ["physical", "disability", "chronic", "medical condition"]):
+    if any(
+        term in factor_lower for term in ["physical", "disability", "chronic", "medical condition"]
+    ):
         factor = get_disqualifying_factor("physical_condition")
         if factor:
             matching_factors.append(factor.to_dict())
@@ -230,7 +250,9 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
         "matching_factors": matching_factors,
         "is_absolute_disqualifier": is_absolute,
         "guidance": "\n".join(guidance),
-        "recommendation": "Immediate consultation with HRP management official required." if is_absolute else "Formal evaluation by appropriate HRP official recommended.",
+        "recommendation": "Immediate consultation with HRP management official required."
+        if is_absolute
+        else "Formal evaluation by appropriate HRP official recommended.",
         "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
     }
 

@@ -1,6 +1,5 @@
 """Pytest configuration and fixtures for HRP MCP tests."""
 
-
 import pytest
 
 

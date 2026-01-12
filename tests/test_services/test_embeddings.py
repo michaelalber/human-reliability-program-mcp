@@ -1,7 +1,6 @@
 """Tests for embedding service."""
 
 
-
 def test_embedding_service_creates_embeddings(embedding_service):
     """Test that embedding service creates embeddings."""
     text = "Human Reliability Program certification requirements"

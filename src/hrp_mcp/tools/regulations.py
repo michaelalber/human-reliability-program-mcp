@@ -124,7 +124,9 @@ async def get_section(section: str) -> dict:
         content = "\n\n".join(chunk.content for chunk in chunks)
         num_chunks = len(chunks)
         subpart = chunks[0].subpart.value if chunks else "unknown"
-        title = chunks[0].title if chunks else (section_info.get("title", "") if section_info else "")
+        title = (
+            chunks[0].title if chunks else (section_info.get("title", "") if section_info else "")
+        )
     except Exception:
         content = ""
         num_chunks = 0
@@ -178,12 +180,14 @@ async def get_subpart(subpart: str) -> dict:
     sections = []
     for section_num, info in HRP_SECTIONS.items():
         if info.get("subpart") == subpart_id:
-            sections.append({
-                "section": section_num,
-                "title": info.get("title", ""),
-                "description": info.get("description", ""),
-                "citation": f"10 CFR {section_num}",
-            })
+            sections.append(
+                {
+                    "section": section_num,
+                    "title": info.get("title", ""),
+                    "description": info.get("description", ""),
+                    "citation": f"10 CFR {section_num}",
+                }
+            )
 
     # Sort by section number
     sections.sort(key=lambda x: float(x["section"].replace("712.", "")))
@@ -237,6 +241,7 @@ async def explain_term(term: str) -> dict:
 
     # Try to provide suggestions
     from hrp_mcp.resources.reference_data import HRP_DEFINITIONS
+
     suggestions = []
     term_lower = term.lower()
     for key, value in HRP_DEFINITIONS.items():

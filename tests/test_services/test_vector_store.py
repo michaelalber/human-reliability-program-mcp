@@ -1,6 +1,5 @@
 """Tests for vector store service."""
 
-
 from hrp_mcp.models.regulations import HRPSubpart
 
 
