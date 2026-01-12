@@ -242,8 +242,8 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
         }
 
     guidance = []
-    for factor in matching_factors:
-        guidance.append(f"{factor['name']}: {factor['evaluation_guidance']}")
+    for match in matching_factors:
+        guidance.append(f"{match['name']}: {match['evaluation_guidance']}")
 
     return {
         "factor_description": factor_description,

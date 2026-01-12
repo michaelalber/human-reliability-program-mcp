@@ -123,7 +123,7 @@ async def get_section(section: str) -> dict:
         chunks = await rag_service.get_section(section_num)
         content = "\n\n".join(chunk.content for chunk in chunks)
         num_chunks = len(chunks)
-        subpart = chunks[0].subpart.value if chunks else "unknown"
+        subpart = chunks[0].subpart.value if chunks and chunks[0].subpart else "unknown"
         title = (
             chunks[0].title if chunks else (section_info.get("title", "") if section_info else "")
         )

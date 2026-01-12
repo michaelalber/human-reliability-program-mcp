@@ -165,11 +165,11 @@ class VectorStoreService:
             if section:
                 conditions.append({"section": section})
 
-            where = None
+            where: dict | None = None
             if len(conditions) == 1:
                 where = conditions[0]
             elif len(conditions) > 1:
-                where = {"$and": conditions}
+                where = {"$and": conditions}  # type: ignore[dict-item]
 
             results = self.collection.query(
                 query_embeddings=[query_embedding],
