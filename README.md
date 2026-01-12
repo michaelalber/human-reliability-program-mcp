@@ -1,5 +1,8 @@
 # Human Reliability Program MCP Server
 
+[![CI](https://github.com/michaelalber/human-reliability-program-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/michaelalber/human-reliability-program-mcp/actions/workflows/ci.yml)
+[![Security](https://github.com/michaelalber/human-reliability-program-mcp/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/michaelalber/human-reliability-program-mcp/actions/workflows/security.yml)
+
 A FastMCP-based Model Context Protocol server for querying DOE Human Reliability Program (10 CFR Part 712) regulations.
 
 ## Overview
