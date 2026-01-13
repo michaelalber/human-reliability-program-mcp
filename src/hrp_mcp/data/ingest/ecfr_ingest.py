@@ -1,5 +1,7 @@
 """eCFR ingestion for 10 CFR Parts 707, 710, 712 using structure API."""
 
+from __future__ import annotations
+
 import logging
 import re
 from datetime import datetime
@@ -315,74 +317,78 @@ class CFRPartIngestor(BaseIngestor):
 
         # Try finding SECTION elements
         for elem in root.iter():
-            tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
-            if tag.upper() == "SECTION" or tag.upper() in ("DIV8", "DIV9"):
+            tag = self._get_tag_name(elem)
+            if tag == "SECTION" or tag in ("DIV8", "DIV9"):
                 sections.append(elem)
 
         return sections
 
-    def _extract_section_number(self, elem: Element) -> str | None:
-        """Extract section number from element."""
+    def _get_tag_name(self, elem: Element) -> str:
+        """Extract clean uppercase tag name from element."""
+        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+        return tag.upper()
+
+    def _find_child_text(self, elem: Element, tag_name: str) -> str | None:
+        """Find text content from first child with matching tag name."""
+        for child in elem:
+            if self._get_tag_name(child) == tag_name:
+                text = (child.text or "").strip()
+                if text:
+                    return text
+        return None
+
+    def _match_section_number(self, text: str) -> str | None:
+        """Match and format section number from text."""
         pattern = rf"{self.part}\.(\d+)"
-
-        # Try SECTNO element
-        for child in elem:
-            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag.upper() == "SECTNO":
-                text = (child.text or "").strip()
-                match = re.search(pattern, text)
-                if match:
-                    return f"{self.part}.{match.group(1)}"
-
-        # Try HEAD element
-        for child in elem:
-            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag.upper() == "HEAD":
-                text = (child.text or "").strip()
-                match = re.search(pattern, text)
-                if match:
-                    return f"{self.part}.{match.group(1)}"
-
-        # Try N attribute
-        n_attr = elem.get("N", "")
-        match = re.search(pattern, n_attr)
+        match = re.search(pattern, text)
         if match:
             return f"{self.part}.{match.group(1)}"
-
         return None
+
+    def _extract_section_number(self, elem: Element) -> str | None:
+        """Extract section number from element."""
+        # Try SECTNO element, then HEAD element
+        for tag_name in ("SECTNO", "HEAD"):
+            text = self._find_child_text(elem, tag_name)
+            if text:
+                section_num = self._match_section_number(text)
+                if section_num:
+                    return section_num
+
+        # Try N attribute as fallback
+        n_attr = elem.get("N", "")
+        return self._match_section_number(n_attr)
+
+    def _clean_title_text(self, text: str) -> str:
+        """Remove section number prefix from title text."""
+        return re.sub(rf"^§?\s*{self.part}\.\d+\s*", "", text)
 
     def _extract_title(
         self, elem: Element, section_num: str, section_titles: dict[str, str]
     ) -> str:
         """Extract section title from element or use structure API title."""
-        # Try SUBJECT element
-        for child in elem:
-            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag.upper() == "SUBJECT":
-                text = (child.text or "").strip()
-                if text:
-                    return text
+        # Try SUBJECT element first
+        subject_text = self._find_child_text(elem, "SUBJECT")
+        if subject_text:
+            return subject_text
 
-        # Try HEAD element (after section number)
-        for child in elem:
-            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag.upper() == "HEAD":
-                text = (child.text or "").strip()
-                # Remove section number prefix
-                text = re.sub(rf"^§?\s*{self.part}\.\d+\s*", "", text)
-                if text:
-                    return text
+        # Try HEAD element (clean section number prefix)
+        head_text = self._find_child_text(elem, "HEAD")
+        if head_text:
+            cleaned = self._clean_title_text(head_text)
+            if cleaned:
+                return cleaned
 
         # Fall back to structure API title
         return section_titles.get(section_num, "")
 
     def _extract_content(self, elem: Element) -> str:
         """Extract text content from element."""
+        content_tags = ("P", "FP", "AMDPAR", "NOTE")
         parts = []
 
         for child in elem.iter():
-            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag.upper() in ("P", "FP", "AMDPAR", "NOTE"):
+            if self._get_tag_name(child) in content_tags:
                 text = "".join(child.itertext()).strip()
                 if text:
                     parts.append(text)
