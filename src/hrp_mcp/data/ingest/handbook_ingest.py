@@ -165,37 +165,56 @@ class HandbookIngestor(BaseIngestor):
                 "Install it with: pip install docling"
             ) from e
 
+    def _find_main_content(self, soup: BeautifulSoup) -> BeautifulSoup | None:
+        """Find the main content area in parsed HTML."""
+        for selector in ("main", "article", "body"):
+            content = soup.find(selector)
+            if content:
+                return content
+        return None
+
+    def _format_heading(self, element: BeautifulSoup) -> str | None:
+        """Format a heading element as markdown."""
+        level = int(element.name[1])
+        text = element.get_text(strip=True)
+        return f"\n{'#' * level} {text}\n" if text else None
+
+    def _format_paragraph(self, element: BeautifulSoup) -> str | None:
+        """Format a paragraph element as markdown."""
+        text = element.get_text(strip=True)
+        return f"\n{text}\n" if text else None
+
+    def _format_list_item(self, element: BeautifulSoup) -> str | None:
+        """Format a list item element as markdown."""
+        text = element.get_text(strip=True)
+        return f"- {text}" if text else None
+
+    def _format_element(self, element: BeautifulSoup) -> str | None:
+        """Format an HTML element as markdown text."""
+        tag = element.name
+        if tag in ("h1", "h2", "h3", "h4"):
+            return self._format_heading(element)
+        if tag == "p":
+            return self._format_paragraph(element)
+        if tag == "li":
+            return self._format_list_item(element)
+        return None
+
     def _parse_html(self, html_content: str) -> str:
         """Parse HTML content and extract text as markdown-like format."""
         soup = BeautifulSoup(html_content, "html.parser")
-
-        # Find the main content area
-        main_content = soup.find("main") or soup.find("article") or soup.find("body")
+        main_content = self._find_main_content(soup)
 
         if not main_content:
             return ""
 
-        # Build markdown-like text
+        content_tags = ["h1", "h2", "h3", "h4", "p", "li"]
         lines = []
 
-        for element in main_content.find_all(["h1", "h2", "h3", "h4", "p", "li", "ul"]):
-            tag = element.name
-
-            if tag in ("h1", "h2", "h3", "h4"):
-                level = int(tag[1])
-                text = element.get_text(strip=True)
-                if text:
-                    lines.append(f"\n{'#' * level} {text}\n")
-
-            elif tag == "p":
-                text = element.get_text(strip=True)
-                if text:
-                    lines.append(f"\n{text}\n")
-
-            elif tag == "li":
-                text = element.get_text(strip=True)
-                if text:
-                    lines.append(f"- {text}")
+        for element in main_content.find_all(content_tags):
+            formatted = self._format_element(element)
+            if formatted:
+                lines.append(formatted)
 
         return "\n".join(lines)
 
