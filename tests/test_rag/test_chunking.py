@@ -6,7 +6,6 @@ Tests cover token counting, text chunking, and overlap handling.
 from hrp_mcp.models.regulations import SourceType
 from hrp_mcp.rag.chunking import ChunkMetadata, RegulationChunker
 
-
 # --- ChunkMetadata Tests ---
 
 

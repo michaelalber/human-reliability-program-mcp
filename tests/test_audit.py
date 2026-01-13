@@ -5,7 +5,6 @@ audit log writing, and the audit_log decorator.
 """
 
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -18,7 +17,6 @@ from hrp_mcp.audit import (
     get_audit_entries,
 )
 from hrp_mcp.models.errors import AuditLogError
-
 
 # --- Parameter Sanitization Tests ---
 
