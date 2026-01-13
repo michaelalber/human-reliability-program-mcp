@@ -4,10 +4,13 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from xml.etree.ElementTree import Element
+from typing import TYPE_CHECKING
 
 import httpx
 from defusedxml import ElementTree as ET  # noqa: N817
+
+if TYPE_CHECKING:
+    from xml.etree.ElementTree import Element  # nosec B405 - type hint only
 
 from hrp_mcp.data.ingest.base import BaseIngestor, IngestResult
 from hrp_mcp.models.regulations import RegulationChunk, SourceType
