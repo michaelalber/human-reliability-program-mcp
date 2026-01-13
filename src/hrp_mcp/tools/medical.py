@@ -3,6 +3,8 @@
 Provides tools for HRP medical standards from Subpart B.
 """
 
+from dataclasses import dataclass, field
+
 from hrp_mcp.audit import audit_log
 from hrp_mcp.resources.reference_data import (
     MEDICAL_STANDARDS,
@@ -10,6 +12,128 @@ from hrp_mcp.resources.reference_data import (
     get_medical_standard,
 )
 from hrp_mcp.server import mcp
+
+# --- Medical Condition Evaluation Helpers ---
+
+
+@dataclass
+class ConditionMatcher:
+    """Configuration for matching a medical condition to standards."""
+
+    standard_id: str
+    keywords: tuple[str, ...]
+    considerations: list[str] = field(default_factory=list)
+
+
+# Keyword mappings for medical condition evaluation
+CONDITION_MATCHERS: list[ConditionMatcher] = [
+    ConditionMatcher(
+        standard_id="psychological_evaluation",
+        keywords=("depression", "anxiety", "bipolar", "ptsd", "psychiatric", "mental"),
+        considerations=[
+            "Current symptom status and stability",
+            "Medication regimen and compliance",
+            "Treatment history and response",
+            "Impact on job performance",
+            "Risk of decompensation under stress",
+        ],
+    ),
+    ConditionMatcher(
+        standard_id="physical_examination",
+        keywords=(
+            "heart",
+            "cardiac",
+            "hypertension",
+            "diabetes",
+            "seizure",
+            "vision",
+            "hearing",
+            "back",
+            "injury",
+        ),
+        considerations=[
+            "Condition stability and control",
+            "Medication side effects",
+            "Risk of sudden incapacitation",
+            "Ability to perform essential job functions",
+            "Need for accommodations",
+        ],
+    ),
+    ConditionMatcher(
+        standard_id="substance_use",
+        keywords=("alcohol", "drug", "substance", "addiction", "recovery"),
+        considerations=[
+            "Duration of sobriety/recovery",
+            "Participation in treatment program",
+            "Ongoing support system",
+            "Risk of relapse",
+            "Compliance with random testing",
+        ],
+    ),
+]
+
+DEFAULT_CONSIDERATIONS = [
+    "Current status and stability of condition",
+    "Impact on ability to perform HRP duties safely",
+    "Risk assessment for self and others",
+]
+
+EVALUATION_PROCESS = [
+    "Review of medical documentation",
+    "Physical examination by Designated Physician",
+    "Psychological evaluation if indicated",
+    "Job task analysis comparison",
+    "Determination of fitness for duty",
+]
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    """Check if text contains any of the keywords."""
+    return any(keyword in text for keyword in keywords)
+
+
+def _find_matching_standards(
+    condition_lower: str,
+) -> tuple[list[dict], list[str]]:
+    """
+    Find medical standards and considerations matching the condition.
+
+    Returns tuple of (standards list, considerations list).
+    """
+    standards: list[dict] = []
+    considerations: list[str] = []
+    matched_standard_ids: set[str] = set()
+
+    for matcher in CONDITION_MATCHERS:
+        if _contains_any(condition_lower, matcher.keywords):
+            std = get_medical_standard(matcher.standard_id)
+            if std and matcher.standard_id not in matched_standard_ids:
+                standards.append(std.to_dict())
+                matched_standard_ids.add(matcher.standard_id)
+                considerations.extend(matcher.considerations)
+
+    # Always include general medical standard
+    gen_std = get_medical_standard("general_medical")
+    if gen_std and "general_medical" not in matched_standard_ids:
+        standards.append(gen_std.to_dict())
+
+    return standards, considerations
+
+
+def _build_medical_condition_response(
+    condition: str,
+    standards: list[dict],
+    considerations: list[str],
+) -> dict:
+    """Build the response dictionary for medical condition evaluation."""
+    return {
+        "condition": condition,
+        "relevant_standards": standards,
+        "evaluation_process": EVALUATION_PROCESS,
+        "key_considerations": considerations if considerations else DEFAULT_CONSIDERATIONS,
+        "recommendation": "Formal evaluation by Designated Physician required for official determination.",
+        "disclaimer": "This is informational guidance only. All medical fitness determinations must be made by the Designated Physician.",
+    }
 
 
 @mcp.tool()
@@ -142,98 +266,10 @@ async def check_medical_condition(condition: str) -> dict:
     """
     condition_lower = condition.lower()
 
-    relevant_standards = []
-    key_considerations = []
+    # Find matching standards and considerations
+    standards, considerations = _find_matching_standards(condition_lower)
 
-    # Check for psychological conditions
-    if any(
-        term in condition_lower
-        for term in ["depression", "anxiety", "bipolar", "ptsd", "psychiatric", "mental"]
-    ):
-        std = get_medical_standard("psychological_evaluation")
-        if std:
-            relevant_standards.append(std.to_dict())
-        key_considerations.extend(
-            [
-                "Current symptom status and stability",
-                "Medication regimen and compliance",
-                "Treatment history and response",
-                "Impact on job performance",
-                "Risk of decompensation under stress",
-            ]
-        )
-
-    # Check for physical conditions
-    if any(
-        term in condition_lower
-        for term in [
-            "heart",
-            "cardiac",
-            "hypertension",
-            "diabetes",
-            "seizure",
-            "vision",
-            "hearing",
-            "back",
-            "injury",
-        ]
-    ):
-        std = get_medical_standard("physical_examination")
-        if std:
-            relevant_standards.append(std.to_dict())
-        key_considerations.extend(
-            [
-                "Condition stability and control",
-                "Medication side effects",
-                "Risk of sudden incapacitation",
-                "Ability to perform essential job functions",
-                "Need for accommodations",
-            ]
-        )
-
-    # Check for substance-related conditions
-    if any(
-        term in condition_lower
-        for term in ["alcohol", "drug", "substance", "addiction", "recovery"]
-    ):
-        std = get_medical_standard("substance_use")
-        if std:
-            relevant_standards.append(std.to_dict())
-        key_considerations.extend(
-            [
-                "Duration of sobriety/recovery",
-                "Participation in treatment program",
-                "Ongoing support system",
-                "Risk of relapse",
-                "Compliance with random testing",
-            ]
-        )
-
-    # General medical standard always applies
-    gen_std = get_medical_standard("general_medical")
-    if gen_std and gen_std.to_dict() not in relevant_standards:
-        relevant_standards.append(gen_std.to_dict())
-
-    return {
-        "condition": condition,
-        "relevant_standards": relevant_standards,
-        "evaluation_process": [
-            "Review of medical documentation",
-            "Physical examination by Designated Physician",
-            "Psychological evaluation if indicated",
-            "Job task analysis comparison",
-            "Determination of fitness for duty",
-        ],
-        "key_considerations": key_considerations
-        if key_considerations
-        else [
-            "Current status and stability of condition",
-            "Impact on ability to perform HRP duties safely",
-            "Risk assessment for self and others",
-        ],
-        "recommendation": "Formal evaluation by Designated Physician required for official determination.",
-        "disclaimer": "This is informational guidance only. All medical fitness determinations must be made by the Designated Physician.",
-    }
+    return _build_medical_condition_response(condition, standards, considerations)
 
 
 @mcp.tool()

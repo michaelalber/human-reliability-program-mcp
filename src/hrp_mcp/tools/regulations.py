@@ -4,8 +4,10 @@ Provides semantic search capabilities for 10 CFR Part 712 regulations,
 section lookups, and HRP terminology definitions.
 """
 
+from dataclasses import dataclass
+
 from hrp_mcp.audit import audit_log
-from hrp_mcp.models.regulations import HRPSubpart
+from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk
 from hrp_mcp.resources.reference_data import (
     HRP_SECTIONS,
     get_definition,
@@ -13,6 +15,74 @@ from hrp_mcp.resources.reference_data import (
 )
 from hrp_mcp.server import mcp
 from hrp_mcp.services import get_rag_service
+
+# --- Section Retrieval Helpers ---
+
+
+@dataclass
+class SectionData:
+    """Data retrieved for a regulation section."""
+
+    content: str
+    num_chunks: int
+    subpart: str
+    title: str
+
+
+async def _fetch_section_from_rag(section_num: str) -> SectionData | None:
+    """
+    Fetch section data from RAG service.
+
+    Returns SectionData if found, None if section not in vector store.
+    """
+    rag_service = get_rag_service()
+    try:
+        chunks: list[RegulationChunk] = await rag_service.get_section(section_num)
+        if not chunks:
+            return None
+
+        return SectionData(
+            content="\n\n".join(chunk.content for chunk in chunks),
+            num_chunks=len(chunks),
+            subpart=chunks[0].subpart.value if chunks[0].subpart else "unknown",
+            title=chunks[0].title,
+        )
+    except Exception:
+        return None
+
+
+def _get_fallback_section_data(section_num: str) -> SectionData:
+    """Get section data from reference data when RAG lookup fails."""
+    section_info = get_section_info(section_num)
+    return SectionData(
+        content="",
+        num_chunks=0,
+        subpart=section_info.get("subpart", "A") if section_info else "A",
+        title=section_info.get("title", "") if section_info else "",
+    )
+
+
+def _build_section_response(section_num: str, data: SectionData) -> dict:
+    """Build the response dictionary for a section lookup."""
+    # Normalize subpart format
+    subpart = data.subpart
+    if len(subpart) == 1:
+        subpart = f"subpart_{subpart.lower()}"
+
+    # Get title with fallback
+    title = data.title or HRP_SECTIONS.get(section_num, {}).get("title", "")
+
+    # Get content with fallback message
+    content = data.content or "Section content not yet ingested. Run ingestion first."
+
+    return {
+        "section": section_num,
+        "title": title,
+        "subpart": subpart,
+        "citation": f"10 CFR {section_num}",
+        "content": content,
+        "chunks": data.num_chunks,
+    }
 
 
 @mcp.tool()
@@ -108,39 +178,17 @@ async def get_section(section: str) -> dict:
         - content: Complete section text
         - chunks: Number of chunks for this section
     """
-    rag_service = get_rag_service()
-
     # Normalize section number
     section_num = section.strip()
     if not section_num.startswith("712."):
         section_num = f"712.{section_num}"
 
-    # Get section info from reference data
-    section_info = get_section_info(section_num)
+    # Try RAG service first, fall back to reference data
+    data = await _fetch_section_from_rag(section_num)
+    if data is None:
+        data = _get_fallback_section_data(section_num)
 
-    # Try to get full content from vector store
-    try:
-        chunks = await rag_service.get_section(section_num)
-        content = "\n\n".join(chunk.content for chunk in chunks)
-        num_chunks = len(chunks)
-        subpart = chunks[0].subpart.value if chunks and chunks[0].subpart else "unknown"
-        title = (
-            chunks[0].title if chunks else (section_info.get("title", "") if section_info else "")
-        )
-    except Exception:
-        content = ""
-        num_chunks = 0
-        subpart = section_info.get("subpart", "A") if section_info else "A"
-        title = section_info.get("title", "") if section_info else ""
-
-    return {
-        "section": section_num,
-        "title": title or HRP_SECTIONS.get(section_num, {}).get("title", ""),
-        "subpart": f"subpart_{subpart.lower()}" if len(subpart) == 1 else subpart,
-        "citation": f"10 CFR {section_num}",
-        "content": content if content else "Section content not yet ingested. Run ingestion first.",
-        "chunks": num_chunks,
-    }
+    return _build_section_response(section_num, data)
 
 
 @mcp.tool()
