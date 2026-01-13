@@ -4,7 +4,10 @@ Provides tools for HRP certification requirements, position types,
 and disqualifying factors.
 """
 
+from dataclasses import dataclass
+
 from hrp_mcp.audit import audit_log
+from hrp_mcp.models.hrp import DisqualifyingFactor
 from hrp_mcp.resources.reference_data import (
     CERTIFICATION_COMPONENTS,
     HRP_POSITION_TYPES,
@@ -12,6 +15,169 @@ from hrp_mcp.resources.reference_data import (
     get_position_type,
 )
 from hrp_mcp.server import mcp
+
+# --- Disqualifying Factor Evaluation Helpers ---
+
+
+@dataclass
+class FactorMatcher:
+    """Configuration for matching a disqualifying factor."""
+
+    factor_id: str
+    keywords: tuple[str, ...]
+    is_absolute: bool = False
+    secondary_keywords: tuple[str, ...] | None = None  # Additional required keywords
+
+
+# Keyword mappings for disqualifying factor detection
+# Order matters: hallucinogen checks come first due to special time-based logic
+FACTOR_MATCHERS: list[FactorMatcher] = [
+    # Drug-related factors
+    FactorMatcher(
+        factor_id="drug_test_positive",
+        keywords=("drug", "marijuana", "cocaine", "opioid", "positive test"),
+    ),
+    FactorMatcher(
+        factor_id="substance_use_disorder",
+        keywords=("drug", "marijuana", "cocaine", "opioid"),
+        secondary_keywords=("disorder", "addiction", "dependence"),
+    ),
+    # Alcohol-related factors
+    FactorMatcher(
+        factor_id="alcohol_test_positive",
+        keywords=("alcohol", "drinking", "dui", "dwi"),
+    ),
+    FactorMatcher(
+        factor_id="alcohol_use_disorder",
+        keywords=("alcohol", "drinking"),
+        secondary_keywords=("disorder", "alcoholism", "dependence"),
+    ),
+    # Mental health conditions
+    FactorMatcher(
+        factor_id="mental_health_condition",
+        keywords=(
+            "depression",
+            "anxiety",
+            "bipolar",
+            "ptsd",
+            "mental",
+            "psychiatric",
+            "psychological",
+        ),
+    ),
+    # Physical conditions
+    FactorMatcher(
+        factor_id="physical_condition",
+        keywords=("physical", "disability", "chronic", "medical condition"),
+    ),
+    # Behavioral issues
+    FactorMatcher(
+        factor_id="behavioral_issue",
+        keywords=("violation", "dishonest", "misconduct", "behavioral"),
+    ),
+    # Security concerns
+    FactorMatcher(
+        factor_id="security_concern",
+        keywords=("security", "clearance", "foreign", "criminal"),
+    ),
+]
+
+HALLUCINOGEN_KEYWORDS = ("hallucinogen", "lsd", "mushroom", "psilocybin", "mescaline", "peyote")
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    """Check if text contains any of the keywords."""
+    return any(keyword in text for keyword in keywords)
+
+
+def _check_hallucinogen_factors(factor_lower: str) -> list[tuple[DisqualifyingFactor, bool]]:
+    """
+    Check for hallucinogen-related disqualifying factors.
+
+    Returns list of (factor, is_absolute) tuples.
+    """
+    results: list[tuple[DisqualifyingFactor, bool]] = []
+
+    if not _contains_any(factor_lower, HALLUCINOGEN_KEYWORDS):
+        return results
+
+    # Check for use within 5 years (absolute disqualifier)
+    within_5_years = "5 year" in factor_lower or any(
+        f"{i} year" in factor_lower for i in range(1, 5)
+    )
+    if within_5_years:
+        factor = get_disqualifying_factor("hallucinogen_use")
+        if factor:
+            results.append((factor, True))
+
+    # Check for flashback (absolute disqualifier)
+    if "flashback" in factor_lower:
+        factor = get_disqualifying_factor("hallucinogen_flashback")
+        if factor:
+            results.append((factor, True))
+
+    return results
+
+
+def _check_standard_factors(factor_lower: str) -> list[tuple[DisqualifyingFactor, bool]]:
+    """
+    Check for standard (non-hallucinogen) disqualifying factors.
+
+    Returns list of (factor, is_absolute) tuples.
+    """
+    results: list[tuple[DisqualifyingFactor, bool]] = []
+
+    for matcher in FACTOR_MATCHERS:
+        if not _contains_any(factor_lower, matcher.keywords):
+            continue
+
+        # Check secondary keywords if required
+        if matcher.secondary_keywords and not _contains_any(
+            factor_lower, matcher.secondary_keywords
+        ):
+            continue
+
+        factor = get_disqualifying_factor(matcher.factor_id)
+        if factor:
+            results.append((factor, matcher.is_absolute))
+
+    return results
+
+
+def _build_disqualifying_response(
+    factor_description: str,
+    matching_factors: list[dict],
+    is_absolute: bool,
+) -> dict:
+    """Build the response dictionary for disqualifying factor evaluation."""
+    if not matching_factors:
+        return {
+            "factor_description": factor_description,
+            "matching_factors": [],
+            "is_absolute_disqualifier": False,
+            "guidance": "No specific disqualifying factors identified based on the description provided.",
+            "recommendation": "Consult with your HRP management official or Designated Physician for a formal evaluation.",
+            "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
+        }
+
+    guidance_lines = [
+        f"{match['name']}: {match['evaluation_guidance']}" for match in matching_factors
+    ]
+
+    recommendation = (
+        "Immediate consultation with HRP management official required."
+        if is_absolute
+        else "Formal evaluation by appropriate HRP official recommended."
+    )
+
+    return {
+        "factor_description": factor_description,
+        "matching_factors": matching_factors,
+        "is_absolute_disqualifier": is_absolute,
+        "guidance": "\n".join(guidance_lines),
+        "recommendation": recommendation,
+        "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
+    }
 
 
 @mcp.tool()
@@ -152,109 +318,14 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
     """
     factor_lower = factor_description.lower()
 
-    matching_factors = []
-    is_absolute = False
+    # Collect all matching factors from both checkers
+    all_matches = _check_hallucinogen_factors(factor_lower) + _check_standard_factors(factor_lower)
 
-    # Check for hallucinogen use
-    if any(
-        term in factor_lower
-        for term in ["hallucinogen", "lsd", "mushroom", "psilocybin", "mescaline", "peyote"]
-    ):
-        if "5 year" in factor_lower or any(f"{i} year" in factor_lower for i in range(1, 5)):
-            factor = get_disqualifying_factor("hallucinogen_use")
-            if factor:
-                matching_factors.append(factor.to_dict())
-                is_absolute = True
-        if "flashback" in factor_lower:
-            factor = get_disqualifying_factor("hallucinogen_flashback")
-            if factor:
-                matching_factors.append(factor.to_dict())
-                is_absolute = True
+    # Convert to dicts and determine if any are absolute disqualifiers
+    matching_factors = [factor.to_dict() for factor, _ in all_matches]
+    is_absolute = any(is_abs for _, is_abs in all_matches)
 
-    # Check for drug-related factors
-    if any(
-        term in factor_lower for term in ["drug", "marijuana", "cocaine", "opioid", "positive test"]
-    ):
-        factor = get_disqualifying_factor("drug_test_positive")
-        if factor:
-            matching_factors.append(factor.to_dict())
-        factor = get_disqualifying_factor("substance_use_disorder")
-        if factor and any(term in factor_lower for term in ["disorder", "addiction", "dependence"]):
-            matching_factors.append(factor.to_dict())
-
-    # Check for alcohol-related factors
-    if any(term in factor_lower for term in ["alcohol", "drinking", "dui", "dwi"]):
-        factor = get_disqualifying_factor("alcohol_test_positive")
-        if factor:
-            matching_factors.append(factor.to_dict())
-        factor = get_disqualifying_factor("alcohol_use_disorder")
-        if factor and any(
-            term in factor_lower for term in ["disorder", "alcoholism", "dependence"]
-        ):
-            matching_factors.append(factor.to_dict())
-
-    # Check for mental health conditions
-    if any(
-        term in factor_lower
-        for term in [
-            "depression",
-            "anxiety",
-            "bipolar",
-            "ptsd",
-            "mental",
-            "psychiatric",
-            "psychological",
-        ]
-    ):
-        factor = get_disqualifying_factor("mental_health_condition")
-        if factor:
-            matching_factors.append(factor.to_dict())
-
-    # Check for physical conditions
-    if any(
-        term in factor_lower for term in ["physical", "disability", "chronic", "medical condition"]
-    ):
-        factor = get_disqualifying_factor("physical_condition")
-        if factor:
-            matching_factors.append(factor.to_dict())
-
-    # Check for behavioral issues
-    if any(term in factor_lower for term in ["violation", "dishonest", "misconduct", "behavioral"]):
-        factor = get_disqualifying_factor("behavioral_issue")
-        if factor:
-            matching_factors.append(factor.to_dict())
-
-    # Check for security concerns
-    if any(term in factor_lower for term in ["security", "clearance", "foreign", "criminal"]):
-        factor = get_disqualifying_factor("security_concern")
-        if factor:
-            matching_factors.append(factor.to_dict())
-
-    # Build response
-    if not matching_factors:
-        return {
-            "factor_description": factor_description,
-            "matching_factors": [],
-            "is_absolute_disqualifier": False,
-            "guidance": "No specific disqualifying factors identified based on the description provided.",
-            "recommendation": "Consult with your HRP management official or Designated Physician for a formal evaluation.",
-            "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
-        }
-
-    guidance = []
-    for match in matching_factors:
-        guidance.append(f"{match['name']}: {match['evaluation_guidance']}")
-
-    return {
-        "factor_description": factor_description,
-        "matching_factors": matching_factors,
-        "is_absolute_disqualifier": is_absolute,
-        "guidance": "\n".join(guidance),
-        "recommendation": "Immediate consultation with HRP management official required."
-        if is_absolute
-        else "Formal evaluation by appropriate HRP official recommended.",
-        "disclaimer": "This is informational guidance only. All HRP eligibility determinations must be made by authorized HRP officials.",
-    }
+    return _build_disqualifying_response(factor_description, matching_factors, is_absolute)
 
 
 @mcp.tool()
