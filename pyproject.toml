@@ -105,6 +105,11 @@ module = [
 ]
 disable_error_code = ["arg-type", "return-value", "attr-defined", "assignment", "operator", "index", "var-annotated"]
 
+[tool.bandit]
+targets = ["src"]
+exclude_dirs = ["tests", ".venv", "data"]
+skips = []
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
