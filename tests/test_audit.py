@@ -30,14 +30,14 @@ class TestSanitizeParams:
         result = _sanitize_params(params)
 
         assert result["username"] == "john"
-        assert result["password"] == "[REDACTED]"
+        assert result["password"] == "[REDACTED]"  # noqa: S105
 
     def test_should_redact_token(self):
         """Test that token fields are redacted."""
         params = {"api_token": "abc123", "data": "value"}
         result = _sanitize_params(params)
 
-        assert result["api_token"] == "[REDACTED]"
+        assert result["api_token"] == "[REDACTED]"  # noqa: S105
         assert result["data"] == "value"
 
     def test_should_redact_key(self):
@@ -53,7 +53,7 @@ class TestSanitizeParams:
         params = {"client_secret": "shhh", "name": "test"}
         result = _sanitize_params(params)
 
-        assert result["client_secret"] == "[REDACTED]"
+        assert result["client_secret"] == "[REDACTED]"  # noqa: S105
 
     def test_should_redact_credential(self):
         """Test that credential fields are redacted."""
@@ -82,8 +82,8 @@ class TestSanitizeParams:
         params = {"PASSWORD": "secret", "Api_Token": "token123"}
         result = _sanitize_params(params)
 
-        assert result["PASSWORD"] == "[REDACTED]"
-        assert result["Api_Token"] == "[REDACTED]"
+        assert result["PASSWORD"] == "[REDACTED]"  # noqa: S105
+        assert result["Api_Token"] == "[REDACTED]"  # noqa: S105
 
     def test_should_truncate_long_strings(self):
         """Test that long strings are truncated."""
@@ -325,10 +325,10 @@ class TestAuditLogDecorator:
             def tool_with_sensitive(password: str, query: str) -> str:
                 return "done"
 
-            tool_with_sensitive(password="secret123", query="search")
+            tool_with_sensitive(password="secret123", query="search")  # noqa: S106
 
             entry = json.loads(log_file.read_text().strip())
-            assert entry["params"]["password"] == "[REDACTED]"
+            assert entry["params"]["password"] == "[REDACTED]"  # noqa: S105
             assert entry["params"]["query"] == "search"
 
 

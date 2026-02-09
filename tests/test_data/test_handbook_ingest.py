@@ -343,7 +343,7 @@ It has multiple lines.
         sections = ingestor._parse_handbook_sections(content)
 
         assert len(sections) == 1
-        section_id = list(sections.keys())[0]
+        section_id = next(iter(sections.keys()))
         title, text = sections[section_id]
         assert title == "Introduction"
         assert "introduction content" in text
@@ -439,7 +439,7 @@ Line 3.
 
         sections = ingestor._parse_handbook_sections(content)
 
-        section_id = list(sections.keys())[0]
+        section_id = next(iter(sections.keys()))
         _, text = sections[section_id]
         assert "Line 1." in text
         assert "Line 2." in text
