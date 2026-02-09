@@ -3,6 +3,8 @@
 Provides tools for HRP drug and alcohol testing requirements.
 """
 
+from typing import Any
+
 from hrp_mcp.audit import audit_log
 from hrp_mcp.resources.reference_data import CONTROLLED_SUBSTANCES
 from hrp_mcp.server import mcp
@@ -10,7 +12,7 @@ from hrp_mcp.server import mcp
 
 @mcp.tool()
 @audit_log
-async def get_drug_testing_requirements() -> dict:
+async def get_drug_testing_requirements() -> dict[str, Any]:
     """
     Get drug testing requirements per 10 CFR 712.15.
 
@@ -58,7 +60,7 @@ async def get_drug_testing_requirements() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_alcohol_testing_requirements() -> dict:
+async def get_alcohol_testing_requirements() -> dict[str, Any]:
     """
     Get alcohol testing requirements per 10 CFR 712.15.
 
@@ -119,7 +121,7 @@ async def get_alcohol_testing_requirements() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_testing_frequency() -> dict:
+async def get_testing_frequency() -> dict[str, Any]:
     """
     Get information about HRP testing frequency requirements.
 
@@ -163,7 +165,7 @@ async def get_testing_frequency() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_substance_list() -> dict:
+async def get_substance_list() -> dict[str, Any]:
     """
     Get the list of controlled substances tested in HRP drug testing.
 

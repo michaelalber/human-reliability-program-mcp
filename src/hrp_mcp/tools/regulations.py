@@ -5,6 +5,7 @@ section lookups, and HRP terminology definitions.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from hrp_mcp.audit import audit_log
 from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk
@@ -62,7 +63,7 @@ def _get_fallback_section_data(section_num: str) -> SectionData:
     )
 
 
-def _build_section_response(section_num: str, data: SectionData) -> dict:
+def _build_section_response(section_num: str, data: SectionData) -> dict[str, Any]:
     """Build the response dictionary for a section lookup."""
     # Normalize subpart format
     subpart = data.subpart
@@ -91,7 +92,7 @@ async def search_10cfr712(
     query: str,
     subpart: str | None = None,
     limit: int = 10,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     Search 10 CFR Part 712 (Human Reliability Program) using semantic search.
 
@@ -154,7 +155,7 @@ async def search_10cfr712(
 
 @mcp.tool()
 @audit_log
-async def get_section(section: str) -> dict:
+async def get_section(section: str) -> dict[str, Any]:
     """
     Get the full text of a specific section of 10 CFR Part 712.
 
@@ -193,7 +194,7 @@ async def get_section(section: str) -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_subpart(subpart: str) -> dict:
+async def get_subpart(subpart: str) -> dict[str, Any]:
     """
     Get information about an entire subpart of 10 CFR Part 712.
 
@@ -251,7 +252,7 @@ async def get_subpart(subpart: str) -> dict:
 
 @mcp.tool()
 @audit_log
-async def explain_term(term: str) -> dict:
+async def explain_term(term: str) -> dict[str, Any]:
     """
     Look up the definition of an HRP term from 10 CFR 712.3.
 

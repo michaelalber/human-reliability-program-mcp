@@ -1,7 +1,10 @@
 """Vector store service using ChromaDB."""
 
+from typing import Any
+
 import chromadb
 from chromadb import Collection
+from chromadb.api import ClientAPI
 
 from hrp_mcp.models.errors import VectorStoreError
 from hrp_mcp.models.regulations import HRPSubpart, RegulationChunk, SourceType
@@ -21,11 +24,11 @@ class VectorStoreService:
             db_path: Path to the ChromaDB storage directory.
         """
         self._db_path = db_path
-        self._client: chromadb.ClientAPI | None = None
+        self._client: ClientAPI | None = None
         self._collection: Collection | None = None
 
     @property
-    def client(self) -> chromadb.ClientAPI:
+    def client(self) -> ClientAPI:
         """Lazy-load and return the ChromaDB client."""
         if self._client is None:
             try:
@@ -138,7 +141,7 @@ class VectorStoreService:
         subpart: HRPSubpart | None = None,
         section: str | None = None,
         limit: int = 10,
-    ) -> list[tuple[dict, float]]:
+    ) -> list[tuple[dict[str, Any], float]]:
         """
         Search for similar regulation chunks.
 
@@ -165,11 +168,11 @@ class VectorStoreService:
             if section:
                 conditions.append({"section": section})
 
-            where: dict | None = None
+            where: dict[str, Any] | None = None
             if len(conditions) == 1:
                 where = conditions[0]
             elif len(conditions) > 1:
-                where = {"$and": conditions}  # type: ignore[dict-item]
+                where = {"$and": conditions}
 
             results = self.collection.query(
                 query_embeddings=[query_embedding],
@@ -178,7 +181,7 @@ class VectorStoreService:
                 include=["metadatas", "distances"],
             )
 
-            all_results: list[tuple[dict, float]] = []
+            all_results: list[tuple[dict[str, Any], float]] = []
             if results["metadatas"] and results["distances"]:
                 for metadata, distance in zip(
                     results["metadatas"][0],
@@ -194,7 +197,7 @@ class VectorStoreService:
         except Exception as e:
             raise VectorStoreError(f"Search failed: {e}") from e
 
-    def get_by_id(self, chunk_id: str) -> dict | None:
+    def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         """
         Get a chunk by exact ID match.
 
@@ -219,7 +222,7 @@ class VectorStoreService:
         except Exception as e:
             raise VectorStoreError(f"Failed to get chunk '{chunk_id}': {e}") from e
 
-    def get_by_section(self, section: str) -> list[dict]:
+    def get_by_section(self, section: str) -> list[dict[str, Any]]:
         """
         Get all chunks for a specific section.
 

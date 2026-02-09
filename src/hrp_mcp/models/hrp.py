@@ -1,6 +1,7 @@
 """HRP-specific Pydantic models for Human Reliability Program data."""
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -72,7 +73,7 @@ class PositionTypeInfo(BaseModel):
         description="Specific requirements for this position type",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "position_type": self.position_type.value,
@@ -93,7 +94,7 @@ class CertificationRequirement(BaseModel):
     frequency: str = Field(default="", description="How often required (initial, annual, etc.)")
     responsible_party: str = Field(default="", description="Who is responsible for this")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "name": self.name,
@@ -117,7 +118,7 @@ class CertificationComponent(BaseModel):
         description="Key elements of this component",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "name": self.name,
@@ -145,7 +146,7 @@ class DisqualifyingFactor(BaseModel):
         description="Guidance on how this factor is evaluated",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "name": self.name,
@@ -173,7 +174,7 @@ class MedicalStandard(BaseModel):
         description="Criteria for evaluation",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "name": self.name,
@@ -199,7 +200,7 @@ class TestingRequirement(BaseModel):
         description="Substances tested for",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "test_type": self.test_type.value,
@@ -235,7 +236,7 @@ class RemovalProcess(BaseModel):
         description="Appeal rights for the individual",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "removal_type": self.removal_type.value,
@@ -270,7 +271,7 @@ class ReinstatementProcess(BaseModel):
         description="Who makes the reinstatement decision",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "description": self.description,
@@ -302,7 +303,7 @@ class AppealProcess(BaseModel):
         description="Next stage of appeal if denied",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "stage": self.stage,
@@ -331,7 +332,7 @@ class HRPRoleInfo(BaseModel):
     )
     section: str = Field(default="", description="CFR section reference")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "role": self.role.value,

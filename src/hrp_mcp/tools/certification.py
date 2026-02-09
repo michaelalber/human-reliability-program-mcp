@@ -5,6 +5,7 @@ and disqualifying factors.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from hrp_mcp.audit import audit_log
 from hrp_mcp.models.hrp import DisqualifyingFactor
@@ -146,9 +147,9 @@ def _check_standard_factors(factor_lower: str) -> list[tuple[DisqualifyingFactor
 
 def _build_disqualifying_response(
     factor_description: str,
-    matching_factors: list[dict],
+    matching_factors: list[dict[str, Any]],
     is_absolute: bool,
-) -> dict:
+) -> dict[str, Any]:
     """Build the response dictionary for disqualifying factor evaluation."""
     if not matching_factors:
         return {
@@ -182,7 +183,7 @@ def _build_disqualifying_response(
 
 @mcp.tool()
 @audit_log
-async def get_certification_requirements(position_type: str | None = None) -> dict:
+async def get_certification_requirements(position_type: str | None = None) -> dict[str, Any]:
     """
     Get the requirements for initial HRP certification per 10 CFR 712.11.
 
@@ -247,7 +248,7 @@ async def get_certification_requirements(position_type: str | None = None) -> di
 
 @mcp.tool()
 @audit_log
-async def get_recertification_requirements() -> dict:
+async def get_recertification_requirements() -> dict[str, Any]:
     """
     Get the requirements for annual HRP recertification per 10 CFR 712.12.
 
@@ -293,7 +294,7 @@ async def get_recertification_requirements() -> dict:
 
 @mcp.tool()
 @audit_log
-async def check_disqualifying_factors(factor_description: str) -> dict:
+async def check_disqualifying_factors(factor_description: str) -> dict[str, Any]:
     """
     Evaluate potential disqualifying factors for HRP certification.
 
@@ -330,7 +331,7 @@ async def check_disqualifying_factors(factor_description: str) -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_hrp_position_types() -> dict:
+async def get_hrp_position_types() -> dict[str, Any]:
     """
     Get information about all HRP position types per 10 CFR 712.10.
 

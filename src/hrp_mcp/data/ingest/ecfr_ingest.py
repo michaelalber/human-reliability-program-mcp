@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from defusedxml import ElementTree as ET  # noqa: N817
@@ -107,7 +107,7 @@ class CFRPartIngestor(BaseIngestor):
             logger.info(f"Found {len(sections)} sections for Part {self.part}")
             return sections
 
-    def _extract_sections_from_structure(self, structure: dict) -> dict[str, str]:
+    def _extract_sections_from_structure(self, structure: dict[str, Any]) -> dict[str, str]:
         """
         Extract section numbers and titles from structure JSON.
 
@@ -119,7 +119,7 @@ class CFRPartIngestor(BaseIngestor):
         """
         sections: dict[str, str] = {}
 
-        def find_part(node: dict, part_num: int) -> dict | None:
+        def find_part(node: dict[str, Any], part_num: int) -> dict[str, Any] | None:
             """Recursively find a part in the structure."""
             if str(node.get("identifier", "")) == str(part_num):
                 return node
@@ -129,7 +129,7 @@ class CFRPartIngestor(BaseIngestor):
                     return result
             return None
 
-        def extract_sections(node: dict) -> None:
+        def extract_sections(node: dict[str, Any]) -> None:
             """Recursively extract all sections from a node."""
             if node.get("type") == "section":
                 identifier = node.get("identifier", "")
@@ -311,7 +311,7 @@ class CFRPartIngestor(BaseIngestor):
 
         return sections
 
-    def _find_sections(self, root: Element) -> list:
+    def _find_sections(self, root: Element) -> list[Element]:
         """Find all section elements in XML."""
         sections = []
 

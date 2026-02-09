@@ -1,6 +1,7 @@
 """Pydantic models for HRP regulations (10 CFR Parts 707, 710, 712)."""
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -103,9 +104,9 @@ class SearchResult(BaseModel):
     chunk: RegulationChunk = Field(..., description="The matched regulation chunk")
     score: float = Field(..., description="Relevance score (0-1, higher is better)")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
-        result = {
+        result: dict[str, Any] = {
             "id": self.chunk.id,
             "source": self.chunk.source.value,
             "section": self.chunk.section,
@@ -134,7 +135,7 @@ class SectionInfo(BaseModel):
         description="Related section numbers",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for MCP tool response."""
         return {
             "section": self.section,

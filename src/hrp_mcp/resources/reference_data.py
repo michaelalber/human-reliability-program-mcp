@@ -11,6 +11,8 @@ Contains static reference data from 10 CFR Part 712 including:
 - Medical standards
 """
 
+from typing import Any
+
 from hrp_mcp.models.hrp import (
     CertificationComponent,
     DisqualifyingCategory,
@@ -26,7 +28,7 @@ from hrp_mcp.models.hrp import (
 # HRP DEFINITIONS (10 CFR 712.3)
 # =============================================================================
 
-HRP_DEFINITIONS: dict[str, dict] = {
+HRP_DEFINITIONS: dict[str, dict[str, Any]] = {
     "access": {
         "term": "Access",
         "definition": "(1) A situation that may provide an individual proximity to or control over Category I special nuclear material (SNM); or (2) The proximity to a nuclear explosive and/or Category I SNM that allows the opportunity to divert, steal, tamper with, and/or damage the nuclear explosive or material in spite of any controls that have been established to prevent such unauthorized actions.",
@@ -225,7 +227,7 @@ HRP_POSITION_TYPES: dict[str, PositionTypeInfo] = {
 # HRP SECTIONS (10 CFR 712)
 # =============================================================================
 
-HRP_SECTIONS: dict[str, dict] = {
+HRP_SECTIONS: dict[str, dict[str, Any]] = {
     # Subpart A - Procedures
     "712.1": {
         "section": "712.1",
@@ -554,7 +556,7 @@ DISQUALIFYING_FACTORS: dict[str, DisqualifyingFactor] = {
 # CONTROLLED SUBSTANCES (Drug Testing Panel)
 # =============================================================================
 
-CONTROLLED_SUBSTANCES: list[dict] = [
+CONTROLLED_SUBSTANCES: list[dict[str, Any]] = [
     {
         "substance": "Marijuana (THC)",
         "category": "Cannabinoid",
@@ -817,7 +819,7 @@ MEDICAL_STANDARDS: dict[str, MedicalStandard] = {
 # =============================================================================
 
 
-def get_definition(term: str) -> dict | None:
+def get_definition(term: str) -> dict[str, Any] | None:
     """Look up an HRP definition by term."""
     term_lower = term.lower().replace(" ", "_").replace("-", "_")
     if term_lower in HRP_DEFINITIONS:
@@ -837,7 +839,7 @@ def get_position_type(position_type: str) -> PositionTypeInfo | None:
     return HRP_POSITION_TYPES.get(key)
 
 
-def get_section_info(section: str) -> dict | None:
+def get_section_info(section: str) -> dict[str, Any] | None:
     """Look up information about a specific section."""
     # Normalize section number
     if not section.startswith("712."):

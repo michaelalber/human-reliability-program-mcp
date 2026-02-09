@@ -3,6 +3,8 @@
 Provides tools for HRP removal, reinstatement, appeals, and administrative procedures.
 """
 
+from typing import Any
+
 from hrp_mcp.audit import audit_log
 from hrp_mcp.resources.reference_data import (
     CERTIFICATION_COMPONENTS,
@@ -13,7 +15,7 @@ from hrp_mcp.server import mcp
 
 @mcp.tool()
 @audit_log
-async def get_temporary_removal_process() -> dict:
+async def get_temporary_removal_process() -> dict[str, Any]:
     """
     Get the temporary removal process per 10 CFR 712.19.
 
@@ -70,7 +72,7 @@ async def get_temporary_removal_process() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_permanent_removal_process() -> dict:
+async def get_permanent_removal_process() -> dict[str, Any]:
     """
     Get the permanent removal process per 10 CFR 712.20.
 
@@ -131,7 +133,7 @@ async def get_permanent_removal_process() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_reinstatement_process() -> dict:
+async def get_reinstatement_process() -> dict[str, Any]:
     """
     Get the reinstatement process per 10 CFR 712.21.
 
@@ -187,7 +189,7 @@ async def get_reinstatement_process() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_appeal_process() -> dict:
+async def get_appeal_process() -> dict[str, Any]:
     """
     Get the administrative review and appeal process per 10 CFR 712.22-712.25.
 
@@ -273,7 +275,7 @@ async def get_appeal_process() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_hrp_roles() -> dict:
+async def get_hrp_roles() -> dict[str, Any]:
     """
     Get information about HRP official roles.
 
@@ -297,7 +299,7 @@ async def get_hrp_roles() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_supervisory_review() -> dict:
+async def get_supervisory_review() -> dict[str, Any]:
     """
     Get supervisory review requirements per 10 CFR 712.14.
 
@@ -349,7 +351,7 @@ async def get_supervisory_review() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_management_evaluation() -> dict:
+async def get_management_evaluation() -> dict[str, Any]:
     """
     Get management evaluation requirements per 10 CFR 712.16.
 
@@ -399,7 +401,7 @@ async def get_management_evaluation() -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_security_review() -> dict:
+async def get_security_review() -> dict[str, Any]:
     """
     Get DOE security review requirements per 10 CFR 712.17.
 

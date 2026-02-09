@@ -4,6 +4,7 @@ Provides tools for HRP medical standards from Subpart B.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from hrp_mcp.audit import audit_log
 from hrp_mcp.resources.reference_data import (
@@ -94,13 +95,13 @@ def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
 
 def _find_matching_standards(
     condition_lower: str,
-) -> tuple[list[dict], list[str]]:
+) -> tuple[list[dict[str, Any]], list[str]]:
     """
     Find medical standards and considerations matching the condition.
 
     Returns tuple of (standards list, considerations list).
     """
-    standards: list[dict] = []
+    standards: list[dict[str, Any]] = []
     considerations: list[str] = []
     matched_standard_ids: set[str] = set()
 
@@ -122,9 +123,9 @@ def _find_matching_standards(
 
 def _build_medical_condition_response(
     condition: str,
-    standards: list[dict],
+    standards: list[dict[str, Any]],
     considerations: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Build the response dictionary for medical condition evaluation."""
     return {
         "condition": condition,
@@ -138,7 +139,7 @@ def _build_medical_condition_response(
 
 @mcp.tool()
 @audit_log
-async def get_medical_standards(category: str | None = None) -> dict:
+async def get_medical_standards(category: str | None = None) -> dict[str, Any]:
     """
     Get HRP medical standards from 10 CFR 712 Subpart B.
 
@@ -186,7 +187,7 @@ async def get_medical_standards(category: str | None = None) -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_psychological_evaluation() -> dict:
+async def get_psychological_evaluation() -> dict[str, Any]:
     """
     Get psychological evaluation requirements per 10 CFR 712.34.
 
@@ -242,7 +243,7 @@ async def get_psychological_evaluation() -> dict:
 
 @mcp.tool()
 @audit_log
-async def check_medical_condition(condition: str) -> dict:
+async def check_medical_condition(condition: str) -> dict[str, Any]:
     """
     Evaluate a medical condition against HRP medical standards.
 
@@ -274,7 +275,7 @@ async def check_medical_condition(condition: str) -> dict:
 
 @mcp.tool()
 @audit_log
-async def get_designated_physician_role() -> dict:
+async def get_designated_physician_role() -> dict[str, Any]:
     """
     Get information about the Designated Physician role per 10 CFR 712.33.
 
