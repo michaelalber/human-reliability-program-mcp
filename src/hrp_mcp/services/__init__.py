@@ -44,6 +44,6 @@ def get_rag_service() -> "RagService":
 
 __all__ = [
     "get_embedding_service",
-    "get_vector_store",
     "get_rag_service",
+    "get_vector_store",
 ]
