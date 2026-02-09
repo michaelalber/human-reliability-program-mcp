@@ -6,7 +6,7 @@ readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
 authors = [
-    { name = "HRP MCP Team" }
+    { name = "Michael K Alber" }
 ]
 keywords = ["mcp", "hrp", "human-reliability-program", "doe", "nnsa", "10-cfr-712", "nuclear"]
 classifiers = [
@@ -58,10 +58,16 @@ dev = [
     "pytest-cov>=4.0",
     "mypy>=1.5",
     "ruff>=0.1.0",
+    "bandit[toml]>=1.7.0",
+    "pip-audit",
 ]
 
 [project.scripts]
 hrp-mcp = "hrp_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/michaelalber/human-reliability-program-mcp"
+Repository = "https://github.com/michaelalber/human-reliability-program-mcp"
 
 [build-system]
 requires = ["hatchling"]
@@ -73,29 +79,40 @@ packages = ["src/hrp_mcp"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "S",      # flake8-bandit
+    "T20",    # flake8-print
+    "SIM",    # flake8-simplify
+    "RUF",    # Ruff-specific rules
+]
 ignore = [
-    "E501",    # Line too long - many long strings in regulation descriptions
+    "E501",    # Line too long - regulation description strings
     "SIM105",  # contextlib.suppress - optional style preference
     "SIM108",  # Ternary operator - not always more readable
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["SIM102"]  # Nested if statements ok in tests for clarity
+"tests/**/*.py" = ["S101"]
 
 [tool.mypy]
 python_version = "3.10"
+strict = true
+warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-no_implicit_optional = true
-warn_redundant_casts = true
-disallow_any_generics = false
+exclude = ["tests", ".venv"]
+# Third-party libs without type stubs (chromadb, docling, sentence-transformers)
 ignore_missing_imports = true
-warn_return_any = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -103,16 +120,29 @@ module = [
     "hrp_mcp.services.vector_store",
     "hrp_mcp.services.embeddings",
 ]
+# Data ingestion uses dynamic dicts; vector store has chromadb type issues
 disable_error_code = ["arg-type", "return-value", "attr-defined", "assignment", "operator", "index", "var-annotated"]
 
 [tool.bandit]
-targets = ["src"]
-exclude_dirs = ["tests", ".venv", "data"]
-skips = []
+exclude_dirs = ["tests", ".venv"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-v --tb=short"
 markers = [
+    "integration: integration tests requiring external services",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["src/hrp_mcp"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
 ]

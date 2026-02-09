@@ -6,7 +6,6 @@ __pycache__/
 .Python
 .venv/
 venv/
-ENV/
 env/
 *.egg-info/
 dist/
@@ -23,7 +22,6 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
-.tox/
 
 # Git
 .git/
@@ -36,7 +34,7 @@ logs/
 .env
 .env.*
 
-# Documentation
+# Documentation (not needed in image)
 *.md
 !README.md
 docs/

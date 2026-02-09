@@ -1,53 +1,39 @@
-# HRP MCP Server Dockerfile
-# Deployment container for Human Reliability Program MCP server
-
 FROM python:3.10-slim
-
-LABEL maintainer="HRP MCP Project"
-LABEL description="Human Reliability Program (10 CFR 712) MCP Server"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HRP_MCP_TRANSPORT=stdio \
-    HRP_CHROMA_PERSIST_DIR=/app/data/chroma \
-    HRP_AUDIT_LOG_PATH=/app/logs/audit.jsonl
-
-# Create app user for security
-RUN groupadd -r hrp && useradd -r -g hrp hrp
-
-# Set working directory
-WORKDIR /app
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
-COPY pyproject.toml ./
+# Create non-root user
+RUN groupadd -r app && useradd -r -g app app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+WORKDIR /app
 
-# Copy application code
-COPY src/ ./src/
-COPY scripts/ ./scripts/
+# Copy project files
+COPY pyproject.toml README.md ./
+COPY src/ src/
+COPY scripts/ scripts/
 
-# Create necessary directories
-RUN mkdir -p /app/data/chroma /app/logs && \
-    chown -R hrp:hrp /app
+# Install the package
+RUN pip install .
 
-# Switch to non-root user
-USER hrp
+# Create data directories
+RUN mkdir -p data/chroma logs \
+    && chown -R app:app /app
 
-# Expose port for HTTP transport (optional)
+USER app
+
 EXPOSE 8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import hrp_mcp; print('healthy')" || exit 1
 
-# Default command - run MCP server
-ENTRYPOINT ["python", "-m", "hrp_mcp.server"]
+CMD ["hrp-mcp"]
