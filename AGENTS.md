@@ -1,125 +1,121 @@
-# AGENTS.md — human-reliability-program-mcp
+# human-reliability-program-mcp — Project Context
 
-> Global rules (TDD, security, quality gates, Python standards, AI behavior) are in
-> `~/.config/opencode/AGENTS.md` and apply here automatically.
+> This is the **project-level** AGENTS.md for OpenCode.
+> It supplements the global `~/.config/opencode/AGENTS.md` — it does NOT replace it.
+> Global standards (coding style, security rules, quality gates, TDD discipline) live in the global file.
+> This file contains only what is specific to THIS project.
 
-## Build/Lint/Test Commands
+---
 
-### Setup
-```bash
-pip install -e ".[dev]"
-```
+## Project Overview
 
-### Running Tests
-```bash
-# Run all tests
-pytest
+- **Name:** human-reliability-program-mcp
+- **Purpose:** FastMCP-based MCP server giving AI assistants structured access to 10 CFR Part 712 (DOE/NNSA Human Reliability Program) regulations — certification requirements, medical standards, and procedural guidance.
+- **Phase:** Build (Alpha — v0.1.0)
+- **Definition of success:** HRP administrators and certifying officials can answer any 10 CFR Part 712 question through an AI assistant, with responses grounded in citations traceable to the public eCFR source.
 
-# Run a single test file
-pytest tests/test_tools/test_regulations.py
+---
 
-# Run a specific test class
-pytest tests/test_tools/test_regulations.py::TestSearchRegulations
+## Technology Stack
 
-# Run a specific test method
-pytest tests/test_tools/test_regulations.py::TestSearchRegulations::test_returns_results
+- **Language:** Python 3.10 (also tested on 3.11, 3.12)
+- **MCP framework:** FastMCP ≥ 0.4.0
+- **Vector store:** ChromaDB ≥ 0.4.0 (embedded, no external service)
+- **Embeddings:** sentence-transformers ≥ 2.2.0 (`all-MiniLM-L6-v2`)
+- **Data models / config:** Pydantic v2 + pydantic-settings (`HRP_*` env vars)
+- **HTTP client:** httpx ≥ 0.25.0 (async; used for eCFR API only)
+- **Document processing:** docling ≥ 2.0.0, beautifulsoup4 ≥ 4.12.0, defusedxml ≥ 0.7.0
+- **Token counting:** tiktoken ≥ 0.5.0
+- **Test framework:** pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov
+- **Linting / formatting:** Ruff (line length 100, rules E W F I N B C4 UP S T20 SIM RUF)
+- **Type checking:** mypy strict mode
+- **Security scan:** bandit + semgrep + CodeQL + Trivy (in CI)
+- **Dependency audit:** pip-audit (weekly CI schedule)
+- **CI/CD:** GitHub Actions — `.github/workflows/ci.yml` (lint, type-check, test matrix 3.10–3.12, dep-audit) + `.github/workflows/security.yml` (weekly semgrep/bandit/CodeQL/Trivy)
+- **Package manager:** pip / uv (`uv.lock` present); install with `pip install -e ".[dev]"`
+- **Container:** Docker Compose (`docker-compose.yml`, `docker-compose.dev.yml`)
 
-# Run with coverage
-pytest --cov=src/hrp_mcp
-```
+---
 
-### Linting and Type Checking
-```bash
-# Lint
-ruff check src/ tests/
+## Architecture
 
-# Type check
-mypy src/
+- **Pattern:** Tool-based vertical slice — each HRP domain (regulations, certification, medical, testing, procedures) is a discrete module under `src/hrp_mcp/tools/`. No cross-tool imports.
+- **Entry point:** `src/hrp_mcp/server.py` — FastMCP server, registers all tools, exposes `main()` as `hrp-mcp` CLI entry point.
+- **Key directories:**
+  - `src/hrp_mcp/tools/` — one file per HRP domain; each file contains all MCP tools for that domain
+  - `src/hrp_mcp/services/` — RAG orchestration (`rag.py`), ChromaDB operations (`vector_store.py`), embeddings wrapper (`embeddings.py`)
+  - `src/hrp_mcp/models/` — Pydantic data models: `hrp.py` (13 domain classes), `regulations.py` (RegulationChunk, HRPSubpart, SourceType), `errors.py`
+  - `src/hrp_mcp/data/ingest/` — ingestion pipeline: `ecfr_ingest.py` (eCFR API), `handbook_ingest.py` (DOE PDF)
+  - `src/hrp_mcp/rag/chunking.py` — document chunking strategies
+  - `src/hrp_mcp/audit.py` — JSONL audit log; every tool invocation is logged with timestamp, tool name, sanitized parameters, result summary
+  - `src/hrp_mcp/config.py` — pydantic-settings; all config via `HRP_*` env vars
+  - `tests/` — mirrors `src/` structure: `test_tools/`, `test_services/`, `test_data/`, `test_rag/`
+- **Non-obvious constraints:**
+  - Transport defaults to `stdio` (Claude Desktop); switch to `streamable-http` via env var — never change the default without discussion.
+  - ChromaDB is embedded (no external service). The `data/chroma/` directory is the persisted vector store — do not delete it in tests.
+  - All XML parsing MUST use `defusedxml` — never `xml.etree.ElementTree` directly (XXE prevention).
+  - Audit log path (`logs/audit.jsonl`) is append-only; never truncate or delete in code paths.
+  - `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` decorator needed on test functions.
 
-# Security scan
-bandit -r src/ -c pyproject.toml
-```
+---
 
-## Code Style Guidelines
+## Key Files
 
-### Imports
-- Follow standard Python import ordering (stdlib, third-party, local)
-- Separate groups with blank lines
-- Use `from __future__ import annotations` for forward references
-- Prefer absolute imports over relative imports
+| File | Why It Matters |
+|---|---|
+| `src/hrp_mcp/server.py` | FastMCP entry point; registers all tools and starts the server |
+| `src/hrp_mcp/config.py` | All configuration via pydantic-settings; read this before touching env vars |
+| `src/hrp_mcp/audit.py` | JSONL audit logger; every tool call must go through here — do not bypass |
+| `src/hrp_mcp/models/hrp.py` | 13 Pydantic domain models — the canonical data contract for all tool outputs |
+| `src/hrp_mcp/models/regulations.py` | `RegulationChunk`, `HRPSubpart`, `SourceType` — RAG data types |
+| `src/hrp_mcp/services/rag.py` | RAG orchestration layer; search → embed → retrieve → return chunks |
+| `src/hrp_mcp/tools/regulations.py` | Most-used tool module; reference pattern for other tool implementations |
+| `tests/conftest.py` | Shared pytest fixtures; read before adding new fixtures |
 
-### Formatting
-- Follow PEP 8 style guidelines
-- Use Ruff for linting, auto-formatting, and import sorting
-- Line length: 100 characters max
-- Ruff rules enabled: E, W, F, I (isort), B, C4, UP, S (bandit), T20, SIM, RUF
+---
 
-### Types
-- Type hints on all function parameters and return types
-- Use Pydantic models for configuration and data structures
-- Use TypedDict for structured data types
-- Use dataclasses for simple data containers
-- mypy runs in strict mode (`strict = true`)
+## Persistent Decisions
 
-### Naming
-- `snake_case` for functions, methods, and variables
-- `PascalCase` for classes and dataclasses
-- `UPPER_CASE` for constants
-- Use descriptive names; avoid unnecessary abbreviations
+| Date | Decision | Rationale |
+|---|---|---|
+| 2025-01-11 | Local-first: no external embedding or vector store services | Data privacy — HRP queries may reference personnel-sensitive context; nothing leaves the network |
+| 2025-01-11 | FastMCP over raw MCP SDK | FastMCP provides async-native tool registration with less boilerplate |
+| 2025-01-11 | ChromaDB embedded (not server mode) | Eliminates an external service dependency for local / Claude Desktop deployment |
+| 2025-01-11 | `defusedxml` mandatory for all XML parsing | eCFR delivers XML; XXE attack surface must be eliminated at the library level |
+| 2025-01-11 | Structured Pydantic outputs for all tools | Let the LLM format for the user; tools return structured data, not prose |
+| 2025-01-11 | `stdio` transport as default; `streamable-http` opt-in via env var | Claude Desktop requires stdio; HTTP is for .NET integration — keep the simpler path as the default |
+| 2025-01-11 | Audit log every tool invocation (JSONL, append-only) | Audit-ready posture for federal environment; required even though no PII is stored |
+| 2025-01-12 | Bind HTTP transport to `127.0.0.1` only | Prevent accidental external exposure; follows DOE security posture |
 
-### Error Handling
-- Use specific exception types, never bare `except:`
-- Use `raise RuntimeError(...)` instead of bare `assert` for runtime checks (bandit S101)
-- Provide helpful error messages
-- Log errors appropriately
+---
 
-### Documentation
-- Google-style docstrings for all public functions and classes
-- Include parameter descriptions with types
-- Include return value descriptions
-- Include example usage when appropriate
+## Open Loops
 
-### Testing
-- Arrange-Act-Assert pattern for all tests
-- Use fixtures for test data setup
-- Test edge cases and error conditions
-- `asyncio_mode = "auto"` is configured — no `@pytest.mark.asyncio` decorator needed
-- Default pytest options: `-v --tb=short`
+- [ ] Handbook ingestion (`handbook_ingest.py`) — DOE handbook PDF not yet ingested; only eCFR XML is in the vector store
+- [ ] Snyk integration not yet wired into CI (global CLAUDE.md requires it for new first-party code)
+---
 
-### Async
-- Use async/await syntax for async operations
-- Follow existing async patterns in the codebase
+## Team
 
-## Project-Specific Security
+| Name | Role | Notes |
+|---|---|---|
+| Michael K. Alber | Sole author | michaelkalber@proton.me |
 
-In addition to global security rules:
-- Use `defusedxml` for all XML parsing (prevents XXE attacks)
-- Use structured Pydantic models for all MCP tool inputs and outputs
-- Sanitize search parameters — redact PII fields (SSN, DOB, passwords, tokens) in audit logs
-- Treat tool queries as potentially containing personnel-sensitive information
-- Audit log all tool invocations with correlation IDs
-- Bind HTTP transport to `127.0.0.1` by default
+---
 
-## Git Workflow
+## Available Tools
 
-- Commit after each GREEN phase
-- Commit message format: `feat|fix|test|refactor: brief description`
-- Don't commit failing tests (RED phase is local only)
+- **grounded-code-mcp** (`search_knowledge`, `search_code_examples`) — authoritative local KB; search `python` collection for FastMCP, Pydantic v2, pytest patterns before writing code
+- **Bash** — run tests (`pytest`), linters (`ruff check`, `mypy`), security scan (`bandit -r src/ -c pyproject.toml`)
+- **Read / Write / Edit / Grep / Glob** — file operations and code search
+- **Skill** — invoke `python-arch-review`, `tdd-cycle`, `python-security-review` skills as needed
 
-## Tools
+---
 
-- **Bash**: Use for running tests, linters, and formatters
-- **Read/Write/Edit**: For file operations
-- **Grep/Glob**: For code search
-- **Task**: For complex, multi-step operations
-- **Skill**: For TDD cycles and architecture reviews
+## Project Boot Ritual
 
-## Example Workflow
+At the start of every session:
 
-1. Write a failing test for the new feature
-2. Run `pytest -k <test_name>` to confirm it fails (RED)
-3. Write minimal code to make the test pass (GREEN)
-4. Run full test suite: `pytest`
-5. Run linters: `ruff check src/ tests/ && mypy src/`
-6. Refactor if needed while keeping tests green (REFACTOR)
-7. Commit: `git commit -m "feat: <description>"`
+1. Read this file (`AGENTS.md`), `intent.md`, and `constraints.md`.
+2. Confirm context — state: current phase, active task (if any), top 3 constraints, open loops.
+3. Do NOT begin work until context is confirmed.
