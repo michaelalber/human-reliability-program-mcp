@@ -5,7 +5,6 @@
 ## Must Do
 
 - Load and confirm context (`AGENTS.md`, `intent.md`, `constraints.md`) before every session.
-- Read the active Jira issue / task spec before beginning any in-flight task.
 - Write three verifiable acceptance criteria before beginning any significant subtask.
 - Confirm understanding before executing any irreversible action (delete vector store, deploy, push).
 - Add a `# VERIFY:` comment rather than guess when uncertain about a regulatory fact, function signature, or API behavior.
@@ -29,7 +28,6 @@
 - Do not delete or truncate `logs/audit.jsonl` in any code path — it is append-only.
 - Do not use `xml.etree.ElementTree` directly — always `defusedxml`.
 - Do not use `.Result` or `.Wait()` on async methods — async is end-to-end.
-- Do not move a Jira issue to Done or Closed — that is a human action only.
 - Do not invent or paraphrase regulatory text without a direct CFR section citation.
 
 ---

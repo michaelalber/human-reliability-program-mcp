@@ -12,9 +12,7 @@
 - **Name:** human-reliability-program-mcp
 - **Purpose:** FastMCP-based MCP server giving AI assistants structured access to 10 CFR Part 712 (DOE/NNSA Human Reliability Program) regulations — certification requirements, medical standards, and procedural guidance.
 - **Phase:** Build (Alpha — v0.1.0)
-- **Jira project key:** [VERIFY: Jira project key, if tracked]
-- **Confluence space:** [VERIFY: Confluence space URL, if tracked]
-- **Definition of success:** HRP administrators and certifying officials can answer any 10 CFR Part 712 question through an AI assistant in under 60 seconds, with citations traceable to the public eCFR source.
+- **Definition of success:** HRP administrators and certifying officials can answer any 10 CFR Part 712 question through an AI assistant, with responses grounded in citations traceable to the public eCFR source.
 
 ---
 
@@ -267,7 +265,6 @@ These extend (do not replace) the global security rules:
 
 - [ ] Handbook ingestion (`handbook_ingest.py`) — DOE handbook PDF not yet ingested; only eCFR XML is in the vector store
 - [ ] Snyk integration not yet wired into CI (global CLAUDE.md requires it for new first-party code)
-- [ ] [VERIFY: Any in-flight Jira issues or feature work currently in progress?]
 
 ---
 
@@ -276,9 +273,8 @@ These extend (do not replace) the global security rules:
 At the start of every session:
 
 1. Read this file (`CLAUDE.md`), `intent.md`, and `constraints.md`.
-2. Check the active Jira issue (if any) for the current task spec and acceptance criteria.
-3. Confirm context — state: current phase, active task (if any), top 3 constraints, open loops.
-4. Do NOT begin work until context is confirmed.
+2. Confirm context — state: current phase, active task (if any), top 3 constraints, open loops.
+3. Do NOT begin work until context is confirmed.
 
 ---
 

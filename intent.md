@@ -12,9 +12,7 @@
 
 ## Primary Goal
 
-Enable DOE/NNSA Human Reliability Program administrators and certifying officials to answer any 10 CFR Part 712 question — certification requirements, medical standards, drug/alcohol testing procedures, removal and reinstatement processes — through an AI assistant, with responses grounded in citations to the public eCFR source and delivered in under 60 seconds.
-
-[VERIFY: Is the "60 seconds" target accurate? Revise if there is a different SLA.]
+Enable DOE/NNSA Human Reliability Program administrators and certifying officials to answer any 10 CFR Part 712 question — certification requirements, medical standards, drug/alcohol testing procedures, removal and reinstatement processes — through an AI assistant, with responses grounded in citations to the public eCFR source.
 
 ---
 
@@ -100,6 +98,5 @@ A good output for this project:
 
 ## Open Loops
 
-- [ ] [VERIFY: Is there a specific SLA or response-time target beyond "interactive"?]
 - [ ] [VERIFY: Is there a planned .NET application that will consume the HTTP transport? If so, capture integration requirements here.]
 - [ ] Handbook ingestion not yet complete — DOE handbook PDF chunks not in vector store; tools may return incomplete results for handbook-specific questions
