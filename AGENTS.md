@@ -99,7 +99,7 @@
 
 | Name | Role | Notes |
 |---|---|---|
-| Michael K. Alber | Sole author | michael.k.alber@gmail.com |
+| Michael K. Alber | Sole author | michaelkalber@proton.me |
 
 ---
 
